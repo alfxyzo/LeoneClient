@@ -1,0 +1,39 @@
+[
+
+  {
+    "slot": 0,
+    "item": "netherite_block",
+    "amount": 3
+  },
+
+  {
+    "slot": 1,
+    "item": "diamond_block",
+    "amount": 4
+  },
+  {
+    "slot": 2,
+    "item": "emerald_block",
+    "amount": 5
+  },
+  {
+    "slot": 3,
+    "item": "gold_block",
+    "amount": 5
+  },
+  {
+    "slot": 4,
+    "item": "iron_block",
+    "amount": 5
+  },
+  {
+    "slot": 5,
+    "item": "beacon",
+    "amount": 1
+  },
+  {
+    "slot": 6,
+    "item": "honeycomb_block",
+    "amount": 4
+  }
+]

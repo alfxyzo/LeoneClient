@@ -1,0 +1,19 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "dev.alfxyz.leoneclient.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [],
+  "client": [
+    "ActionbarMixin",
+    "ChatMixin",
+    "ChestMixin",
+    "ClientChatMixin",
+    "MapMixin",
+    "SoundMixin",
+    "InGameHudRenderMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
