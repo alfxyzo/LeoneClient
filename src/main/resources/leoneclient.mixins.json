@@ -6,12 +6,11 @@
   "mixins": [],
   "client": [
     "ActionbarMixin",
+    "BookOpenBlockerMixin",
     "ChatMixin",
-    "ChestMixin",
     "ClientChatMixin",
-    "MapMixin",
-    "SoundMixin",
-    "InGameHudRenderMixin"
+    "TitleMixin",
+    "ScoreboardMixin"
   ],
   "injectors": {
     "defaultRequire": 1
