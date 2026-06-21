@@ -6,80 +6,100 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import net.fabricmc.loader.api.FabricLoader;
 
 public class LeoneClientConfig {
-    private static int regularActionBarY = 49;
-    private static int combatActionBarY = 65;
+    private static int regularActionBarY = 60;
+    private static int combatActionBarY = 70;
     private static String autoJoinServer = "Remain in hub";
     private static boolean mergeActionBars = false;
+    private static int afkTimeoutMinutes = 5;
+    private static boolean afkEnabled = true;
+    private static boolean cooldownNotifyActionBar = true;
+    private static boolean cooldownNotifyChat = true;
+    private static boolean cooldownCountdownActionBar = true;
+    private static boolean cooldownReadyActionBar = true;
+    private static boolean cooldownCountdownChat = false;
+    private static boolean cooldownReadyChat = true;
     private static boolean actionBarEnabled = true;
-    private static boolean combatTimerWidget = true;
-    private static boolean hideCombatBarWhenEffect = false;
-    private static boolean hideChatAlerts = true;
-    private static boolean antiMuteEnabled = true;
-    private static String antiMuteReplacement = "[redacted]";
-    private static boolean filterDiscrimination = true;
-    private static boolean filterDeathWishes = true;
-    private static boolean filterSwears = true;
-    private static boolean filterAdvertisements = true;
 
     private static final File CONFIG_FILE = new File(FabricLoader.getInstance().getConfigDir().toFile(), "leoneclient.json");
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
-    static { load(); }
+    static {
+        load();
+    }
 
-    public static int getRegularActionBarY() { return regularActionBarY; }
-    public static int getCombatActionBarY() { return combatActionBarY; }
-    public static String getAutoJoinServer() { return autoJoinServer; }
-    public static boolean getMergeActionBars() { return mergeActionBars; }
+    public static int getRegularActionBarY() {
+        return regularActionBarY;
+    }
+    public static int getCombatActionBarY() {
+        return combatActionBarY;
+    }
+    public static String getAutoJoinServer() {
+        return autoJoinServer;
+    }
+    public static boolean getMergeActionBars() {
+        return mergeActionBars;
+    }
+    public static int getAfkTimeoutMinutes() { return afkTimeoutMinutes; }
+    public static boolean isAfkEnabled() { return afkEnabled; }
+    public static boolean isCooldownNotifyActionBar() { return cooldownNotifyActionBar; }
+    public static boolean isCooldownNotifyChat() { return cooldownNotifyChat; }
+    public static boolean isCooldownCountdownActionBar() { return cooldownCountdownActionBar; }
+    public static boolean isCooldownReadyActionBar() { return cooldownReadyActionBar; }
+    public static boolean isCooldownCountdownChat() { return cooldownCountdownChat; }
+    public static boolean isCooldownReadyChat() { return cooldownReadyChat; }
     public static boolean isActionBarEnabled() { return actionBarEnabled; }
-    public static boolean isCombatTimerWidget() { return combatTimerWidget; }
-    public static boolean isHideCombatBarWhenEffect() { return hideCombatBarWhenEffect; }
-    public static boolean isHideChatAlerts() { return hideChatAlerts; }
-    public static boolean isAntiMuteEnabled() { return antiMuteEnabled; }
-    public static String getAntiMuteReplacement() { return antiMuteReplacement; }
-    public static boolean isFilterDiscrimination() { return filterDiscrimination; }
-    public static boolean isFilterDeathWishes() { return filterDeathWishes; }
-    public static boolean isFilterSwears() { return filterSwears; }
-    public static boolean isFilterAdvertisements() { return filterAdvertisements; }
-
-    public static void setRegularActionBarY(int y) { regularActionBarY = Math.max(1, y); save(); }
-    public static void setCombatActionBarY(int y) { combatActionBarY = Math.max(1, y); save(); }
-    public static void setAutoJoinServer(String server) { autoJoinServer = server; save(); }
-    public static void setMergeActionBars(boolean merge) { mergeActionBars = merge; save(); }
-    public static void setActionBarEnabled(boolean e) { actionBarEnabled = e; save(); }
-    public static void setCombatTimerWidget(boolean e) { combatTimerWidget = e; save(); }
-    public static void setHideCombatBarWhenEffect(boolean e) { hideCombatBarWhenEffect = e; save(); }
-    public static void setHideChatAlerts(boolean e) { hideChatAlerts = e; save(); }
-    public static void setAntiMuteEnabled(boolean e) { antiMuteEnabled = e; save(); }
-    public static void setAntiMuteReplacement(String s) { antiMuteReplacement = s.isEmpty() ? "[redacted]" : s; save(); }
-    public static void setFilterDiscrimination(boolean e) { filterDiscrimination = e; save(); }
-    public static void setFilterDeathWishes(boolean e) { filterDeathWishes = e; save(); }
-    public static void setFilterSwears(boolean e) { filterSwears = e; save(); }
-    public static void setFilterAdvertisements(boolean e) { filterAdvertisements = e; save(); }
+    public static void setRegularActionBarY(int y) {
+        regularActionBarY = y;
+        save();
+    }
+    public static void setCombatActionBarY(int y) {
+        combatActionBarY = y;
+        save();
+    }
+    public static void setAutoJoinServer(String server) {
+        autoJoinServer = server;
+        save();
+    }
+    public static void setMergeActionBars(boolean merge) {
+        mergeActionBars = merge;
+        save();
+    }
+    public static void setAfkTimeoutMinutes(int min) { afkTimeoutMinutes = min; save(); }
+    public static void setAfkEnabled(boolean enabled) { afkEnabled = enabled; save(); }
+    public static void setCooldownNotifyActionBar(boolean enabled) { cooldownNotifyActionBar = enabled; save(); }
+    public static void setCooldownNotifyChat(boolean enabled) { cooldownNotifyChat = enabled; save(); }
+    public static void setCooldownCountdownActionBar(boolean enabled) { cooldownCountdownActionBar = enabled; save(); }
+    public static void setCooldownReadyActionBar(boolean enabled) { cooldownReadyActionBar = enabled; save(); }
+    public static void setCooldownCountdownChat(boolean enabled) { cooldownCountdownChat = enabled; save(); }
+    public static void setCooldownReadyChat(boolean enabled) { cooldownReadyChat = enabled; save(); }
+    public static void setActionBarEnabled(boolean enabled) { actionBarEnabled = enabled; save(); }
 
     public static void load() {
-        if (!CONFIG_FILE.exists()) return;
-        try (FileReader reader = new FileReader(CONFIG_FILE)) {
-            ConfigData data = GSON.fromJson(reader, ConfigData.class);
-            if (data == null) return;
-            regularActionBarY = data.regularActionBarY;
-            combatActionBarY = data.combatActionBarY;
-            autoJoinServer = data.autoJoinServer;
-            mergeActionBars = data.mergeActionBars;
-            actionBarEnabled = data.actionBarEnabled;
-            combatTimerWidget = data.combatTimerWidget;
-            hideCombatBarWhenEffect = data.hideCombatBarWhenEffect;
-            hideChatAlerts = data.hideChatAlerts;
-            antiMuteEnabled = data.antiMuteEnabled;
-            if (data.antiMuteReplacement != null && !data.antiMuteReplacement.isEmpty())
-                antiMuteReplacement = data.antiMuteReplacement;
-            filterDiscrimination = data.filterDiscrimination;
-            filterDeathWishes = data.filterDeathWishes;
-            filterSwears = data.filterSwears;
-            filterAdvertisements = data.filterAdvertisements;
-        } catch (IOException ignored) {}
+        if (CONFIG_FILE.exists()) {
+            try (FileReader reader = new FileReader(CONFIG_FILE)) {
+                ConfigData data = GSON.fromJson(reader, ConfigData.class);
+                if (data != null) {
+                    regularActionBarY = data.regularActionBarY;
+                    combatActionBarY = data.combatActionBarY;
+                    autoJoinServer = data.autoJoinServer;
+                    mergeActionBars = data.mergeActionBars;
+                    if (data.afkTimeoutMinutes > 0) afkTimeoutMinutes = data.afkTimeoutMinutes;
+                    afkEnabled = data.afkEnabled;
+                    cooldownNotifyActionBar = data.cooldownNotifyActionBar;
+                    cooldownNotifyChat = data.cooldownNotifyChat;
+                    cooldownCountdownActionBar = data.cooldownCountdownActionBar;
+                    cooldownReadyActionBar = data.cooldownReadyActionBar;
+                    cooldownCountdownChat = data.cooldownCountdownChat;
+                    cooldownReadyChat = data.cooldownReadyChat;
+                    actionBarEnabled = data.actionBarEnabled;
+                }
+            } catch (IOException ignored) {}
+        }
     }
 
     public static void save() {
@@ -89,34 +109,32 @@ public class LeoneClientConfig {
             data.combatActionBarY = combatActionBarY;
             data.autoJoinServer = autoJoinServer;
             data.mergeActionBars = mergeActionBars;
+            data.afkTimeoutMinutes = afkTimeoutMinutes;
+            data.afkEnabled = afkEnabled;
+            data.cooldownNotifyActionBar = cooldownNotifyActionBar;
+            data.cooldownNotifyChat = cooldownNotifyChat;
+            data.cooldownCountdownActionBar = cooldownCountdownActionBar;
+            data.cooldownReadyActionBar = cooldownReadyActionBar;
+            data.cooldownCountdownChat = cooldownCountdownChat;
+            data.cooldownReadyChat = cooldownReadyChat;
             data.actionBarEnabled = actionBarEnabled;
-            data.combatTimerWidget = combatTimerWidget;
-            data.hideCombatBarWhenEffect = hideCombatBarWhenEffect;
-            data.hideChatAlerts = hideChatAlerts;
-            data.antiMuteEnabled = antiMuteEnabled;
-            data.antiMuteReplacement = antiMuteReplacement;
-            data.filterDiscrimination = filterDiscrimination;
-            data.filterDeathWishes = filterDeathWishes;
-            data.filterSwears = filterSwears;
-            data.filterAdvertisements = filterAdvertisements;
             GSON.toJson(data, writer);
         } catch (IOException ignored) {}
     }
 
     private static class ConfigData {
-        int regularActionBarY = 49;
-        int combatActionBarY = 65;
+        int regularActionBarY = 60;
+        int combatActionBarY = 70;
         String autoJoinServer = "Remain in hub";
         boolean mergeActionBars = false;
+        int afkTimeoutMinutes = 5;
+        boolean afkEnabled = true;
+        boolean cooldownNotifyActionBar = true;
+        boolean cooldownNotifyChat = true;
+        boolean cooldownCountdownActionBar = true;
+        boolean cooldownReadyActionBar = true;
+        boolean cooldownCountdownChat = false;
+        boolean cooldownReadyChat = true;
         boolean actionBarEnabled = true;
-        boolean combatTimerWidget = true;
-        boolean hideCombatBarWhenEffect = false;
-        boolean hideChatAlerts = true;
-        boolean antiMuteEnabled = true;
-        String antiMuteReplacement = "[redacted]";
-        boolean filterDiscrimination = true;
-        boolean filterDeathWishes = true;
-        boolean filterSwears = true;
-        boolean filterAdvertisements = true;
     }
-}
+} 
