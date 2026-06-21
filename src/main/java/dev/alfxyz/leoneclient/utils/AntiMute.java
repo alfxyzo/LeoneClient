@@ -1,172 +1,159 @@
 package dev.alfxyz.leoneclient.utils;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.Map;
-
-// All references to LeoneClientConfig.getAntiMuteCustomReplacements() and related config logic have been removed.
 
 public class AntiMute {
-    private static final List<Pattern> patterns = new ArrayList<>();
-    private static final List<Pattern> ignoredPatterns = new ArrayList<>();
+    static final List<Pattern> discrimination = new ArrayList<>();
+    static final List<Pattern> deathWishes    = new ArrayList<>();
+    static final List<Pattern> swears         = new ArrayList<>();
+    static final List<Pattern> ads            = new ArrayList<>();
+    static final List<Pattern> adsIgnored     = new ArrayList<>();
 
     static {
-        // Discrimination strict
-        patterns.add(Pattern.compile("n[i1l!u]+[g68][g68]+?[e3o]+r+[s\\$5]?", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("(ph|f)[a@][g68][g68][i1]ng", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("(ph|f)[a@][g68][g68]?[o0][t\\+][s\\$5]?", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("n+[i!1l]+[g68][g68]+?[a4]+", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("ch[i1]nk", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("n[e3][g68]r[o0][1i]d", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("n[e3][g68]r[o0][s5]", Pattern.CASE_INSENSITIVE));
-        // Discrimination
-        patterns.add(Pattern.compile("\\bn[i|1|!]+g+$.*\\b", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("\\b(ph|f)[a@]g+g?[s\\$]\\b", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("\\b(ph|f)[a@]g+[s\\$]?\\b", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("b[e3][a4]n[e3]r", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("\\bc[o0][o0]+n.*\\b", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("c[o0]tt[o0]n[ ]{0,1}p[i1|!]+ck[e3]+r", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("卍|卐", Pattern.CASE_INSENSITIVE));
-        // Death wishes
-        patterns.add(Pattern.compile("(h[a|4]ng|n[3|e]ck|k[1|i|l|!]ll)[ ]{0,1}y[o|0]urs[e|3]lf", Pattern.CASE_INSENSITIVE));
-        // Death wishes punish
-        patterns.add(Pattern.compile("\\bk+y+[s|\\$|5]+$.*\\b", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("c[o|0]mm[i|1|!]t[ ]{0,1}su[i|1|!]c[i|1|!]de", Pattern.CASE_INSENSITIVE));
-        // Advertisement
-        patterns.add(Pattern.compile("m[1il]n[e3]hut.gg", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("(?:[a-z0-9-]{0,61}[a-z0-9])\\.(?:[net|com|gg]{2,3})", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("\\/j[0o][i1l]n", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("\\(dot\\)", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("br[o|0]k[1|i]t[s|5]", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("br[o|0]b[o|0]x[e|3]d", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("br[o|0]pr[o|0]xy", Pattern.CASE_INSENSITIVE));
-        // Swears
-        patterns.add(Pattern.compile("\\b[a|@][s|$][s|$]+\\b", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("[a@][s\\$][s\\$]h[o0][l1][e3][s\\$]?", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("b[a@][s\\$][t\\+][a@]rd", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("b[e3][a@][s\\$][t\\+][i1][a@]?[l1]([i1][t\\+]y)?", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("b[e3][a@][s\\$][t\\+][i1][l1][i1][t\\+]y", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("b[e3][s\\$][t\\+][i1][a@][l1]([i1][t\\+]y)?", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("b[i1][t\\+]ch[s\\$]?", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("b[i1][t\\+]ch[e3]r[s\\$]?", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("b[i1][t\\+]ch[e3][s\\$]", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("b[i1][t\\+]ch[i1]ng?", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("b[l1][o0]wj[o0]b[s\\$]?", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("c[l1][i1][t\\+]", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("^(c|k|ck|q)[o0](c|k|ck|q)[s\\$]?$", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("(c|k|ck|q)[o0](c|k|ck|q)[s\\$]u", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("(c|k|ck|q)[o0](c|k|ck|q)[s\\$]u(c|k|ck|q)[e3]d", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("(c|k|ck|q)[o0](c|k|ck|q)[s\\$]u(c|k|ck|q)[e3]r", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("(c|k|ck|q)[o0](c|k|ck|q)[s\\$]u(c|k|ck|q)[i1]ng", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("(c|k|ck|q)[o0](c|k|ck|q)[s\\$]u(c|k|ck|q)[s\\$]", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("^cum[s\\$]?$", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("d[i1]ck", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("d[i1][l1]d[o0]", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("d[i1][l1]d[o0][s\\$]", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("d[i1]n(c|k|ck|q)", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("d[i1]n(c|k|ck|q)[s\\$]", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("[e3]j[a@]cu[l1]", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("(ph|f)[e3][l1][l1]?[a@][t\\+][i1][o0]", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("(ph|f)u(c|k|ck|q)", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("(ph|f)u(c|k|ck|q)[s\\$]?", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("g[a@]ngb[a@]ng[s\\$]?", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("g[a@]ngb[a@]ng[e3]d", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("h[o0]m?m[o0]", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("h[o0]rny", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("j[a@](c|k|ck|q)\\-?[o0](ph|f)(ph|f)?", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("j[e3]rk\\-?[o0](ph|f)(ph|f)?", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("j[i1!]zz", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("mast(e|ur)b(8|ait|ate)", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("n[i1]gg?[e3]r[s\\$]?", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("[o0]rg[a@][s\\$][i1]m[s\\$]?", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("[o0]rg[a@][s\\$]m[s\\$]?", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("p[e3]nn?[i1][s\\$]", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("p[i1][s\\$][s\\$]", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("p[i1][s\\$][s\\$][o0](ph|f)(ph|f)", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("p[o0]rn", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("p[o0]rn[o0][s\\$]?", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("p[o0]rn[o0]gr[a@]phy", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("pu[s\\$][s\\$][i1][e3][s\\$]", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("pu[s\\$][s\\$]y[s\\$]?", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("[s\\$][e3]x", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("[s\\$]h[i1][t\\+][s\\$]?", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("[s\\$][l1]u[t\\+][s\\$]?", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("r[3e]t[4a]rd", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("cunt$", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("\\bgay\\b", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("\\bwhore\\b", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("k[a|4]nk[e3]r", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("n[a|4]z[i|1]", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("m[i1][e3]rd[a4]", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("\\bp[u0v]t[o0a4].*\\b", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("b[o0]n[e3]r", Pattern.CASE_INSENSITIVE));
-        patterns.add(Pattern.compile("d[1i]ld[o0]", Pattern.CASE_INSENSITIVE));
+        // ── Discrimination ────────────────────────────────────────────────────
+        discrimination.add(p("n[i1l!u]+[g68][g68]+?[e3o]+r+[s\\$5]?"));
+        discrimination.add(p("(ph|f)[a@][g68][g68][i1]ng"));
+        discrimination.add(p("(ph|f)[a@][g68][g68]?[o0][t\\+][s\\$5]?"));
+        discrimination.add(p("n+[i!1l]+[g68][g68]+?[a4]+"));
+        discrimination.add(p("ch[i1]nk"));
+        discrimination.add(p("n[e3][g68]r[o0][1i]d"));
+        discrimination.add(p("n[e3][g68]r[o0][s5]"));
+        discrimination.add(p("\\bn[i|1|!]+g+$.*\\b"));
+        discrimination.add(p("\\b(ph|f)[a@]g+g?[s\\$]\\b"));
+        discrimination.add(p("\\b(ph|f)[a@]g+[s\\$]?\\b"));
+        discrimination.add(p("b[e3][a4]n[e3]r"));
+        discrimination.add(p("\\bc[o0][o0]+n.*\\b"));
+        discrimination.add(p("c[o0]tt[o0]n[ ]{0,1}p[i1|!]+ck[e3]+r"));
+        discrimination.add(p("卍|卐"));
+        discrimination.add(p("k[a4]nk[e3]r"));
+        discrimination.add(p("n[a4]z[i1]"));
 
-        // Advertisement ignored patterns
-        ignoredPatterns.add(Pattern.compile("leonemc", Pattern.CASE_INSENSITIVE));
-        ignoredPatterns.add(Pattern.compile("youtube", Pattern.CASE_INSENSITIVE));
-        ignoredPatterns.add(Pattern.compile("twitter", Pattern.CASE_INSENSITIVE));
-        ignoredPatterns.add(Pattern.compile("instagram", Pattern.CASE_INSENSITIVE));
-        ignoredPatterns.add(Pattern.compile("imgur", Pattern.CASE_INSENSITIVE));
-        ignoredPatterns.add(Pattern.compile("gyazo", Pattern.CASE_INSENSITIVE));
-        ignoredPatterns.add(Pattern.compile("prntscr", Pattern.CASE_INSENSITIVE));
-        ignoredPatterns.add(Pattern.compile("prnt\\.sc", Pattern.CASE_INSENSITIVE));
-        ignoredPatterns.add(Pattern.compile("cdn", Pattern.CASE_INSENSITIVE));
-        ignoredPatterns.add(Pattern.compile("pvphub", Pattern.CASE_INSENSITIVE));
-        ignoredPatterns.add(Pattern.compile("minemen", Pattern.CASE_INSENSITIVE));
-        ignoredPatterns.add(Pattern.compile("pvplegacy", Pattern.CASE_INSENSITIVE));
-        ignoredPatterns.add(Pattern.compile("mcpvp", Pattern.CASE_INSENSITIVE));
-        ignoredPatterns.add(Pattern.compile("sr\\.mod", Pattern.CASE_INSENSITIVE));
-        ignoredPatterns.add(Pattern.compile("jr\\.mod", Pattern.CASE_INSENSITIVE));
+        // ── Death wishes ──────────────────────────────────────────────────────
+        deathWishes.add(p("(h[a4]ng|n[3e]ck|k[1il!]ll)[ ]{0,1}y[o0]urs[e3]lf"));
+        deathWishes.add(p("\\bk+y+[s\\$5]+\\b"));
+        deathWishes.add(p("c[o0]mm[i1!]t[ ]{0,1}su[i1!]c[i1!]de"));
+
+        // ── Swears ────────────────────────────────────────────────────────────
+        swears.add(p("\\b[a@][s$][s$]+\\b"));
+        swears.add(p("[a@][s$][s$]h[o0][l1][e3][s$]?"));
+        swears.add(p("b[a@][s$][t+][a@]rd"));
+        swears.add(p("b[e3][a@][s$][t+][i1][a@]?[l1]([i1][t+]y)?"));
+        swears.add(p("b[i1][t+]ch([s$]|[e3][rs$]|[e3][s$]|[i1]ng?)?"));
+        swears.add(p("b[l1][o0]wj[o0]b[s$]?"));
+        swears.add(p("c[l1][i1][t+]"));
+      
+        swears.add(p("^(ck|c|k|q)[o0](ck|c|k|q)[s$]?$"));
+        swears.add(p("(ck|c|k|q)[o0](ck|c|k|q)[s$]u(ck|c|k|q)[e3]r[s$]?"));
+        swears.add(p("(ck|c|k|q)[o0](ck|c|k|q)[s$]u(ck|c|k|q)[i1]ng"));
+        swears.add(p("(ck|c|k|q)[o0](ck|c|k|q)[s$]u(ck|c|k|q)[e3]d"));
+        swears.add(p("(ck|c|k|q)[o0](ck|c|k|q)[s$]u(ck|c|k|q)[s$]"));
+        swears.add(p("(ck|c|k|q)[o0](ck|c|k|q)[s$]u\\b"));
+        swears.add(p("^cum[s$]?$"));
+        swears.add(p("d[i1](ck|c|k)[s$]?"));
+        swears.add(p("d[i1][l1]d[o0][s$]?"));
+        swears.add(p("d[i1]n(ck|c|k|q)[s$]?"));
+        swears.add(p("[e3]j[a@]cu[l1]"));
+        swears.add(p("(ph|f)[e3][l1][l1]?[a@][t+][i1][o0]"));
+    
+        swears.add(p("(ph|f)[uv](ck|c|k|q)[s$]?"));
+        swears.add(p("g[a@]ngb[a@]ng([e3]d|[s$])?"));
+        swears.add(p("h[o0]m+[o0]"));
+        swears.add(p("h[o0]rny"));
+        swears.add(p("j[a@](ck|c|k|q)\\-?[o0](ph|f)(ph|f)?"));
+        swears.add(p("j[e3]rk\\-?[o0](ph|f)(ph|f)?"));
+        swears.add(p("j[i1!]zz"));
+        swears.add(p("mast(e|ur)b(8|ait|ate)"));
+        swears.add(p("n[i1]gg?[e3]r[s$]?"));
+        swears.add(p("[o0]rg[a@][s$][i1]?m[s$]?"));
+        swears.add(p("p[e3]nn?[i1][s$]"));
+        swears.add(p("p[i1][s$]{2}([o0](ph|f){2})?"));
+        swears.add(p("p[o0]rn([o0]([s$]|gr[a@]phy)?)?"));
+        swears.add(p("pu[s$]{2}([i1][e3][s$]|y[s$]?)"));
+        swears.add(p("[s$][e3]x"));
+        swears.add(p("[s$]h[i1][t+][s$]?"));
+        swears.add(p("[s$][l1]u[t+][s$]?"));
+        swears.add(p("r[3e]t[4a]rd"));
+        swears.add(p("cunt[s$]?"));
+        swears.add(p("\\bg[4a]y\\b"));
+        swears.add(p("wh[o0]r[e3][s$]?"));
+        swears.add(p("w[a4]nk[e3]r[s$]?"));
+        swears.add(p("m[i1][e3]rd[a4]"));
+        swears.add(p("\\bp[uv0]t[o0a4]\\S*\\b"));
+        swears.add(p("b[o0]n[e3]r[s$]?"));
+
+        // ── Advertisements ────────────────────────────────────────────────────
+        ads.add(p("m[1il]n[e3]hut\\.gg"));
+        ads.add(p("(?:[a-z0-9-]{0,61}[a-z0-9])\\.(?:net|com|gg)"));
+        ads.add(p("/j[0o][i1l]n"));
+        ads.add(p("\\(dot\\)"));
+        ads.add(p("br[o0]k[1i]t[s5]"));
+        ads.add(p("br[o0]b[o0]x[e3]d"));
+        ads.add(p("br[o0]pr[o0]xy"));
+
+        adsIgnored.add(p("leonemc"));
+        adsIgnored.add(p("youtube"));
+        adsIgnored.add(p("twitter"));
+        adsIgnored.add(p("instagram"));
+        adsIgnored.add(p("imgur"));
+        adsIgnored.add(p("gyazo"));
+        adsIgnored.add(p("prntscr"));
+        adsIgnored.add(p("prnt\\.sc"));
+        adsIgnored.add(p("cdn"));
+        adsIgnored.add(p("pvphub"));
+        adsIgnored.add(p("minemen"));
+        adsIgnored.add(p("pvplegacy"));
+        adsIgnored.add(p("mcpvp"));
+        adsIgnored.add(p("sr\\.mod"));
+        adsIgnored.add(p("jr\\.mod"));
+    }
+
+    private static Pattern p(String regex) {
+        return Pattern.compile(regex, Pattern.CASE_INSENSITIVE);
+    }
+
+    public static FilterResult filter(String message, String replacement,
+            boolean filterDiscrimination, boolean filterDeathWishes,
+            boolean filterSwears, boolean filterAds) {
+        String rep = Matcher.quoteReplacement(replacement);
+        String result = message;
+        Set<String> found = new LinkedHashSet<>();
+        if (filterDiscrimination) result = applyGroup(result, discrimination, rep, found);
+        if (filterDeathWishes)    result = applyGroup(result, deathWishes,    rep, found);
+        if (filterSwears)         result = applyGroup(result, swears,         rep, found);
+        if (filterAds) {
+            boolean safeLink = adsIgnored.stream().anyMatch(ig -> ig.matcher(message).find());
+            if (!safeLink) result = applyGroup(result, ads, rep, found);
+        }
+        return new FilterResult(result, new ArrayList<>(found));
+    }
+
+    private static String applyGroup(String input, List<Pattern> group, String rep, Set<String> found) {
+        String result = input;
+        for (Pattern pat : group) {
+            Matcher m = pat.matcher(result);
+            StringBuffer sb = new StringBuffer();
+            while (m.find()) {
+                found.add(m.group());
+                m.appendReplacement(sb, rep);
+            }
+            m.appendTail(sb);
+            result = sb.toString();
+        }
+        return result;
     }
 
     public static class FilterResult {
         public final String filtered;
-        public final boolean changed;
-        public FilterResult(String filtered, boolean changed) {
+        public final List<String> matched;
+
+        FilterResult(String filtered, List<String> matched) {
             this.filtered = filtered;
-            this.changed = changed;
+            this.matched  = matched;
         }
     }
-
-    public static FilterResult filterMessageWithResult(String message) {
-        boolean changed = false;
-        String filtered = message;
-        // Custom replacements logic removed.
-        // If any ignored pattern matches, skip advertisement patterns
-        boolean ignoreAd = false;
-        for (Pattern ignored : ignoredPatterns) {
-            if (ignored.matcher(filtered).find()) {
-                ignoreAd = true;
-                break;
-            }
-        }
-        for (Pattern pattern : patterns) {
-            if (ignoreAd && isAdPattern(pattern)) continue;
-            String newFiltered = pattern.matcher(filtered).replaceAll("[redacted]");
-            if (!newFiltered.equals(filtered)) changed = true;
-            filtered = newFiltered;
-        }
-        return new FilterResult(filtered, changed);
-    }
-
-    public static String filterMessage(String message) {
-        return filterMessageWithResult(message).filtered;
-    }
-
-    public static boolean shouldBlockMessage(String message) {
-        // Check if any pattern matches the message
-        for (Pattern pattern : patterns) {
-            if (pattern.matcher(message).find()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static boolean isAdPattern(Pattern pattern) {
-        String s = pattern.pattern();
-        return s.contains("min[e3]hut.gg") || s.contains("\\.(?:[net|com|gg]{2,3})") || s.contains("/j[0o][i1l]n") || s.contains("\\(dot\\)") || s.contains("br[o|0]k[1|i]t[s|5]") || s.contains("br[o|0]b[o|0]x[e|3]d") || s.contains("br[o|0]pr[o|0]xy");
-    }
-} 
+}
