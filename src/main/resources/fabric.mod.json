@@ -1,34 +1,44 @@
 {
-  "schemaVersion": 1,
-  "id": "leoneclient",
-  "version": "${version}",
-  "name": "LeoneClient",
-  "description": "The Ultimate Mod for LeoneMC!",
-  "authors": [
-    "Alfxyz"
-  ],
-  "contact": {},
-  "license": "MIT",
-  "icon": "assets.leoneclient/icon.png",
-  "environment": "*",
-  "entrypoints": {
-    "main": [
-      "dev.alfxyz.leoneclient.LeoneClient"
-    ],
-    "modmenu": [
-      "dev.alfxyz.leoneclient.LeoneClientModMenu"
-    ]
-  },
-  "mixins": [
-    "leoneclient.mixins.json"
-  ],
-  "depends": {
-    "fabricloader": ">=0.14.21",
-    "fabric-api": "*",
-    "minecraft": "~1.21.11",
-    "java": ">=21"
-  },
-  "suggests": {
-    "another-mod": "*"
-  }
+	"schemaVersion": 1,
+	"id": "leoneclient",
+	"version": "${version}",
+	"name": "Leone Client",
+	"description": "The client mod for LeoneMC: combat tag tools, chat filters, your LeoneMC friends, one-click server switching and a movable HUD, all in a radial menu on Right Shift.",
+	"authors": [
+		"Alfxyz"
+	],
+	"contact": {
+		"homepage": "https://github.com/alfxyzo/LeoneClient",
+		"sources": "https://github.com/alfxyzo/LeoneClient",
+		"issues": "https://github.com/alfxyzo/LeoneClient/issues"
+	},
+	"license": "All-Rights-Reserved",
+	"icon": "assets/leoneclient/icon.png",
+	"environment": "client",
+	"entrypoints": {
+		"main": [
+			"dev.alfxyz.leoneclient.LeoneClientMod"
+		],
+		"client": [
+			"dev.alfxyz.leoneclient.LeoneClient"
+		],
+		"modmenu": [
+			"dev.alfxyz.leoneclient.ModMenuIntegration"
+		]
+	},
+	"mixins": [
+		{
+			"config": "leoneclient.client.mixins.json",
+			"environment": "client"
+		}
+	],
+	"depends": {
+		"fabricloader": ">=0.19.3",
+		"minecraft": "~26.2",
+		"java": ">=25",
+		"fabric-api": "*"
+	},
+	"suggests": {
+		"modmenu": "*"
+	}
 }

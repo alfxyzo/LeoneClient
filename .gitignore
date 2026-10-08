@@ -1,8 +1,31 @@
+# gradle
 .gradle/
 build/
-bin/
 out/
-*.class
-gradle.properties
+classes/
+
+# IDEs
 .idea/
 *.iml
+*.ipr
+*.iws
+.settings/
+.vscode/
+bin/
+.classpath
+.project
+*.launch
+
+# OS
+*.DS_Store
+Thumbs.db
+
+# development runs
+run/
+run-autotest/
+
+# java
+hs_err_*.log
+replay_*.log
+*.hprof
+*.jfr

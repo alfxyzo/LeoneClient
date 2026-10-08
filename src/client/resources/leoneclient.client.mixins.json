@@ -1,0 +1,18 @@
+{
+	"required": true,
+	"package": "dev.alfxyz.leoneclient.mixin",
+	"compatibilityLevel": "JAVA_25",
+	"client": [
+		"ChatComponentMixin",
+		"ClientPacketListenerMixin",
+		"GameRendererMixin",
+		"HudMixin",
+		"MinecraftMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	},
+	"overwrites": {
+		"requireAnnotations": true
+	}
+}
