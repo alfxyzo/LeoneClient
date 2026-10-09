@@ -59,6 +59,10 @@ While LeoneMC's staff chat toggle is on, the open chat always shows **Typing goe
 
 Mod mode is read from LeoneMC's own messages whenever you switch it. Joining a server with "Enable Mod Mode on Join" is silent, so Leone Client learns the items mod mode puts in your hotbar the first time you switch mod mode on and off, and recognises them when you join later. Until then, mod mode after a join shows as unknown, and while it is unknown only vanish can make staff chat visible. Vanish is read from the "You are currently Vanished" action bar and ends as soon as that stops repeating. Only messages from the server count, never player chat. `/leone staff` shows what Leone Client currently knows.
 
+### Built into chat
+
+With chat open, hold **Ctrl** over a message and press **C** to copy it, or hold **Alt** and click a message to open the LeoneMC profile of the player it is from or about. Holding the key highlights the message and says what will happen; without it, chat works exactly as normal.
+
 ## The dock
 
 - **Search** finds modules by name, category or description. Typing anywhere in the menu starts a search.

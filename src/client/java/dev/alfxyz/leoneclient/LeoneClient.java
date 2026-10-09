@@ -6,6 +6,7 @@ import dev.alfxyz.leoneclient.hud.Hud;
 import dev.alfxyz.leoneclient.hud.Notices;
 import dev.alfxyz.leoneclient.module.Module;
 import dev.alfxyz.leoneclient.module.Modules;
+import dev.alfxyz.leoneclient.ui.ChatLineActions;
 import dev.alfxyz.leoneclient.ui.ChatTabBar;
 import dev.alfxyz.leoneclient.ui.Colors;
 import dev.alfxyz.leoneclient.ui.LeoneScreen;
@@ -82,6 +83,7 @@ public class LeoneClient implements ClientModInitializer {
 		});
 		Hud.register();
 		ChatTabBar.register();
+		ChatLineActions.register();
 		DevAutomation.init();
 	}
 

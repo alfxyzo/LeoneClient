@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import net.fabricmc.fabric.api.client.message.v1.ClientSendMessageEvents;
@@ -278,6 +279,33 @@ public final class ChatTabs extends Module {
 		m = FRIEND_SHORT.matcher(plain);
 		if (m.matches() && Friends.isFriend(m.group(1))) kinds |= FRIEND;
 		return kinds;
+	}
+
+	/**
+	 * The player a line is from or about, for opening their profile: the first name in it of a player on
+	 * this server (other than you), or else whoever wrote it. Null when there is nobody.
+	 */
+	public static @Nullable String person(String plain, Predicate<String> here) {
+		Matcher t = NAME_TOKEN.matcher(plain);
+		while (t.find()) if (!isYou(t.group()) && here.test(t.group())) return t.group();
+		Matcher m = LEONE_PM.matcher(plain);
+		if (m.matches()) return m.group(2);
+		m = WHISPER_IN.matcher(plain);
+		if (m.matches()) return m.group(1);
+		m = WHISPER_OUT.matcher(plain);
+		if (m.matches()) return m.group(1);
+		m = STAFF_SENDER.matcher(plain);
+		if (m.matches()) return isYou(m.group(1)) ? null : m.group(1);
+		m = ARROW_CHAT.matcher(plain);
+		if (!m.matches()) m = ANGLE_CHAT.matcher(plain);
+		if (m.matches()) {
+			// the sender part holds a rank too, and tags in brackets after the name; the name is the last word outside them
+			String last = null;
+			Matcher n = NAME_TOKEN.matcher(m.group(1).replaceAll("\\[[^\\]]*\\]", " "));
+			while (n.find()) last = n.group();
+			return last == null || isYou(last) ? null : last;
+		}
+		return null;
 	}
 
 	private static int privateKinds(boolean toYou, String other) {

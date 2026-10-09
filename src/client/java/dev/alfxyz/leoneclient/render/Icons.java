@@ -71,6 +71,7 @@ public final class Icons {
 	public static final String VIDEO_OFF = "M10.66 6H14a2 2 0 0 1 2 2v2.5l5.25-3.06A.5.5 0 0 1 22 7.87v8.26 M16 16a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2 M2 2l20 20";
 	public static final String KEY = "M2.59 18.59A2 2 0 0 0 2 20v2h3v-2h2v-2h2l1.4-1.4a6.5 6.5 0 1 0-4-4Z M16.5 7.5h.01";
 	public static final String FILTER = "M3 6h18 M7 12h10 M10 18h4";
+	public static final String COPY = "M10 8h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2Z M4 16a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2";
 	public static final String MESSAGES = "M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1";
 
 	private record Key(String path, int sizeQ, int strokeQ) {

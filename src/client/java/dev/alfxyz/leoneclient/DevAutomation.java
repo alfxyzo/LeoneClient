@@ -14,6 +14,7 @@ import dev.alfxyz.leoneclient.module.Modules;
 import dev.alfxyz.leoneclient.features.ChatHooks;
 import dev.alfxyz.leoneclient.staffchat.StaffChat;
 import dev.alfxyz.leoneclient.staffchat.StaffState;
+import dev.alfxyz.leoneclient.ui.ChatLineActions;
 import dev.alfxyz.leoneclient.ui.LeoneScreen;
 import dev.alfxyz.leoneclient.web.Friends;
 import java.nio.file.Files;
@@ -451,6 +452,28 @@ public final class DevAutomation {
 		shot(600, "51-chat-tabs-staff");
 		at(100, "tabs: close", mc -> {
 			server(mc, "❌ You are no longer talking in staff chat.");
+			mc.gui.setScreen(null);
+		});
+		at(300, "lines: hover", mc -> {
+			mc.gui.openChatScreen(ChatComponent.ChatMethod.MESSAGE);
+			server(mc, "Gold Player_Two [VIP] » meet at koth");
+		});
+		at(300, "lines: find", mc -> {
+			double scale = mc.options.chatScale().get();
+			int lineHeight = (int) (9.0 * (mc.options.chatLineSpacing().get() + 1.0));
+			float y = (float) ((mc.getWindow().getGuiScaledHeight() - 40) - lineHeight * scale / 2);
+			var h = ChatLineActions.at(20, y);
+			check("the message under the mouse is found " + (h == null ? null : h.text()), h != null && h.text().equals("Gold Player_Two [VIP] » meet at koth"));
+			check("a message's player is its sender, not a rank or tag (" + ChatLineActions.person("Gold Player_Two [VIP] » meet at koth") + ")",
+				"Player_Two".equals(ChatLineActions.person("Gold Player_Two [VIP] » meet at koth")));
+			check("a private message's player is the other person", "Player_Three".equals(ChatLineActions.person("(From Player_Three): tpa?")));
+			ChatLineActions.debugHeld = 2;
+			ChatLineActions.debugMouse = new double[] {20, y};
+		});
+		shot(500, "52-chat-line-alt");
+		at(100, "lines: done", mc -> {
+			ChatLineActions.debugHeld = 0;
+			ChatLineActions.debugMouse = null;
 			mc.gui.setScreen(null);
 		});
 		at(300, "tabs: back to all", mc -> {

@@ -18,6 +18,10 @@ public interface ChatHistoryAccessor {
 	@Accessor("trimmedMessages")
 	List<GuiMessage.Line> leone$lines();
 
+	/** How many lines the chat is scrolled up by. */
+	@Accessor("chatScrollbarPos")
+	int leone$scroll();
+
 	/** Rebuilds the wrapped lines from the messages, after one was removed or the chat tab changed. */
 	@Invoker("refreshTrimmedMessages")
 	void leone$refreshLines();
