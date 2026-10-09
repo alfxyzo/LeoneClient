@@ -133,7 +133,13 @@ public final class AnticheatAlerts extends Module {
 
 	/** Players flagged in the last few minutes, most recent first. Empty while staff chat is hidden from recordings. */
 	public List<Suspect> recent() {
-		if (!active() || StaffChat.isHidden()) return List.of();
+		if (StaffChat.isHidden()) return List.of();
+		return recentAll();
+	}
+
+	/** The same, even while staff chat is hidden; the Staff page asks before showing them. */
+	public List<Suspect> recentAll() {
+		if (!active()) return List.of();
 		long now = System.currentTimeMillis();
 		List<Suspect> out = new ArrayList<>();
 		long keep = (long) (panelMinutes.get() * 60_000);

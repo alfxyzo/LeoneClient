@@ -4,19 +4,24 @@ import dev.alfxyz.leoneclient.module.Category;
 import dev.alfxyz.leoneclient.module.Module;
 import dev.alfxyz.leoneclient.module.Modules;
 import java.util.List;
+import org.jspecify.annotations.Nullable;
 
 /** A category's modules as cards. */
 final class CategoryPage extends Page {
 	final Category category;
 
+	/** Recent alerts and reports, under the Staff modules. */
+	private final @Nullable StaffSection staff;
+
 	CategoryPage(LeoneScreen screen, Category category) {
 		super(screen);
 		this.category = category;
+		this.staff = category == Category.STAFF ? new StaffSection(screen) : null;
 	}
 
 	@Override
 	float height(Ui ui) {
-		return 38 + 18 + ModuleCard.gridHeight(Modules.of(category).size());
+		return 38 + 18 + ModuleCard.gridHeight(Modules.of(category).size()) + (staff != null ? staff.height(ui) : 0);
 	}
 
 	@Override
@@ -36,5 +41,9 @@ final class CategoryPage extends Page {
 		float hw = ui.text.width(hint, Ui.HINT);
 		ui.text.draw(ui.cv, hint, x + W - cw - (cw > 0 ? 18 : 0) - hw, ui.text.baselineFor(Ui.HINT, y + 19), Ui.HINT, Colors.TEXT_HINT);
 		ModuleCard.grid(ui, screen, mods, x, y + 38 + 18);
+		if (staff != null) {
+			float sy = y + 38 + 18 + ModuleCard.gridHeight(mods.size());
+			ui.entering(ui.stagger(mods.size()), () -> staff.draw(ui, x, sy, W));
+		}
 	}
 }

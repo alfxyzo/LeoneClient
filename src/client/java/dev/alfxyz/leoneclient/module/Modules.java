@@ -18,6 +18,7 @@ import dev.alfxyz.leoneclient.features.LogFilter;
 import dev.alfxyz.leoneclient.features.Mentions;
 import dev.alfxyz.leoneclient.features.ModModeStatus;
 import dev.alfxyz.leoneclient.features.PackWarnings;
+import dev.alfxyz.leoneclient.features.PlayerLookup;
 import dev.alfxyz.leoneclient.features.Reports;
 import dev.alfxyz.leoneclient.features.SessionStats;
 import dev.alfxyz.leoneclient.features.StaffChatModule;
@@ -37,6 +38,7 @@ public final class Modules {
 	public static final ChatCleaner CHAT_CLEANER = new ChatCleaner();
 	public static final FriendHighlight FRIEND_HIGHLIGHT = new FriendHighlight();
 	public static final FriendActivity FRIEND_ACTIVITY = new FriendActivity();
+	public static final PlayerLookup PLAYER_LOOKUP = new PlayerLookup();
 	public static final ActionBar ACTION_BAR = new ActionBar();
 	public static final PackWarnings PACK_WARNINGS = new PackWarnings();
 	public static final Timers TIMERS = new Timers();
@@ -53,7 +55,7 @@ public final class Modules {
 	private static final List<Module> ALL = List.of(
 		COMBAT_TIMER, COMBAT_BAR, COMBAT_LOG_GUARD, SESSION_STATS,
 		ANTI_MUTE, ALERT_FILTER, CHAT_CLEANER, MENTIONS,
-		FRIEND_HIGHLIGHT, FRIEND_ACTIVITY,
+		FRIEND_HIGHLIGHT, FRIEND_ACTIVITY, PLAYER_LOOKUP,
 		ACTION_BAR, TIMERS, PACK_WARNINGS,
 		AUTO_JOIN, ENDER_CHEST_PAGES,
 		INTERFACE, ALL_SERVERS, LOG_FILTER,

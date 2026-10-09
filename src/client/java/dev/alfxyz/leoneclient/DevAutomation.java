@@ -376,7 +376,15 @@ public final class DevAutomation {
 			check("a coinflip you won still shows, others' do not", !chatWith(mc, me + " has won a coinflip").isEmpty() && chatWith(mc, "Other_Player has won a coinflip").isEmpty());
 			List<String> arena = chatWith(mc, "The arena is closing soon");
 			check("three identical lines become one with [x3] " + arena, arena.size() == 1 && arena.getFirst().endsWith("[x3]"));
+			// the Staff page lists who was flagged and the reports, with their buttons
+			server(mc, "Anticheat > Cheater flagged Reach A (14.0x) (ElytraBox)");
+			server(mc, "[Report] (WildKits) Bad_Guy was reported by Good_Guy for hacking.");
+			mc.gui.setScreen(new LeoneScreen());
 		});
+		at(700, "staff page", mc -> click(mc, screen(mc).debugSegment(6), 0));
+		at(10, "park", mc -> move(mc, screen(mc).designToGui(1500, 60)));
+		shot(1200, "47-staff-recent");
+		at(100, "close staff page", mc -> mc.gui.setScreen(null));
 	}
 
 	private static void buildScript() {

@@ -5,7 +5,10 @@ import dev.alfxyz.leoneclient.LeoneClientMod;
 import dev.alfxyz.leoneclient.module.Modules;
 import dev.alfxyz.leoneclient.render.Canvas;
 import dev.alfxyz.leoneclient.render.Gfx;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
@@ -105,10 +108,17 @@ public final class Hud {
 		Canvas cv = begin(canvas);
 		Gfx.text().setGraphics(g);
 		Overlay.Context ctx = new Overlay.Context(cv, Gfx.text(), mc, g, System.nanoTime() / 1e6, false);
+		List<Overlay> shown = new ArrayList<>();
+		Map<Overlay, float[]> rects = new HashMap<>();
 		for (Overlay o : ALL) {
 			if (!o.enabled() || !o.shown()) continue;
-			drawAt(ctx, o);
+			shown.add(o);
+			rects.put(o, place(ctx, o));
 		}
+		// an overlay that grew (a panel with more rows) pushes the ones it would cover out of its way
+		stack(shown, rects, Overlay.START);
+		stack(shown, rects, Overlay.END);
+		for (Overlay o : shown) draw(ctx, o, rects.get(o));
 		cv.pop();
 		cv.flush(g);
 		Gfx.text().setGraphics(null);
@@ -137,6 +147,13 @@ public final class Hud {
 
 	/** Draws one overlay at its stored position and size; returns its rect {x, y, w, h}. */
 	public static float[] drawAt(Overlay.Context ctx, Overlay o) {
+		float[] r = place(ctx, o);
+		draw(ctx, o, r);
+		return r;
+	}
+
+	/** Where an overlay goes, {x, y, w, h} in design px: its stored position, clear of the status effect icons. */
+	private static float[] place(Overlay.Context ctx, Overlay o) {
 		float sc = o.scale;
 		float w = o.width(ctx) * sc, h = o.height(ctx) * sc;
 		float[] p = position(o, w, h);
@@ -145,16 +162,50 @@ public final class Hud {
 			float[] fx = effectsBox(ctx.mc);
 			if (fx != null && p[0] < fx[2] && p[0] + w > fx[0] && p[1] < fx[3]) p[1] = Math.min(900 - h, fx[3] + 6);
 		}
+		return new float[] {p[0], p[1], w, h};
+	}
+
+	private static void draw(Overlay.Context ctx, Overlay o, float[] r) {
 		ctx.alignEnd = o.ax == Overlay.END;
 		ctx.current = o;
-		if (w > 0 && h > 0) {
-			ctx.cv.push();
-			ctx.cv.translate(p[0], p[1]);
-			ctx.cv.scale(sc);
-			o.draw(ctx, 0, 0, w / sc, h / sc);
-			ctx.cv.pop();
+		if (r[2] <= 0 || r[3] <= 0) return;
+		ctx.cv.push();
+		ctx.cv.translate(r[0], r[1]);
+		ctx.cv.scale(o.scale);
+		o.draw(ctx, 0, 0, r[2] / o.scale, r[3] / o.scale);
+		ctx.cv.pop();
+	}
+
+	/**
+	 * Overlays anchored to the top (or bottom) that would overlap are moved apart: the one nearer the
+	 * edge stays, and the next goes just below (or above) it.
+	 */
+	private static void stack(List<Overlay> shown, Map<Overlay, float[]> rects, int anchor) {
+		List<Overlay> col = new ArrayList<>();
+		for (Overlay o : shown) {
+			float[] r = rects.get(o);
+			if (o.ay == anchor && r[2] > 0 && r[3] > 0) col.add(o);
 		}
-		return new float[] {p[0], p[1], w, h};
+		if (anchor == Overlay.START) col.sort((a, b) -> Float.compare(rects.get(a)[1], rects.get(b)[1]));
+		else col.sort((a, b) -> Float.compare(rects.get(b)[1] + rects.get(b)[3], rects.get(a)[1] + rects.get(a)[3]));
+		List<float[]> placed = new ArrayList<>();
+		for (Overlay o : col) {
+			float[] r = rects.get(o);
+			for (int guard = 0; guard < 16; guard++) {
+				float[] hit = null;
+				for (float[] q : placed) if (overlaps(r, q)) hit = q;
+				if (hit == null) break;
+				r[1] = anchor == Overlay.START ? hit[1] + hit[3] + STACK_GAP : hit[1] - r[3] - STACK_GAP;
+			}
+			r[1] = Math.max(0, Math.min(900 - r[3], r[1]));
+			placed.add(r);
+		}
+	}
+
+	private static final float STACK_GAP = 6;
+
+	private static boolean overlaps(float[] a, float[] b) {
+		return a[0] < b[0] + b[2] - 1 && b[0] < a[0] + a[2] - 1 && a[1] < b[1] + b[3] - 1 && b[1] < a[1] + a[3] - 1;
 	}
 
 	public static JsonObject save() {

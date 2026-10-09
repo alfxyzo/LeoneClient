@@ -97,7 +97,11 @@ public class LeoneClient implements ClientModInitializer {
 				Chat.info(chat);
 				return 1;
 			}))
-			.then(ClientCommands.literal("profile").then(ClientCommands.argument("name", StringArgumentType.word()).executes(ctx -> {
+			.then(ClientCommands.literal("profile").executes(ctx -> {
+				// no name: whoever you are looking at
+				Minecraft.getInstance().execute(dev.alfxyz.leoneclient.features.PlayerLookup::lookUp);
+				return 1;
+			}).then(ClientCommands.argument("name", StringArgumentType.word()).executes(ctx -> {
 				String name = StringArgumentType.getString(ctx, "name");
 				LeoneWeb.lookup(name).whenComplete((found, err) -> Minecraft.getInstance().execute(() -> {
 					if (err != null) Chat.info("Could not reach leonemc.net.");

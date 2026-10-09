@@ -26,6 +26,7 @@ Every module starts switched off, so you only get what you turn on.
 | | Mentions | Plays a ping and highlights your name when a player mentions you in chat or staff chat. Join messages, kill messages and staff notices that contain your name do not count, and neither do your own messages. Extra keywords can be added. |
 | Friends | Friend Highlight | Makes your LeoneMC friends' names stand out in chat, with their status on hover. |
 | | Friend Activity | Turns `Friends \| X has joined the server Y.` into a short clickable line, a pop-up, or nothing, and can limit it to your own server. |
+| | Player Lookup | Give it a key, then press it while looking at a player to open their LeoneMC profile. `/leone profile` with no name does the same. |
 | HUD | Action Bar | Draws the action bar wherever you place it in Modify HUD, with optional backdrop, shadow and fade. |
 | | Timers | One HUD panel for what is coming: events (such as Lava Rising) and proxy restarts from `[Alert]` messages, the server's own sidebar countdowns (KOTH, Key All, Map Reset), envoy events, and the current Target bounty. Warns you a minute before, and works even when Alert Filter or Chat Cleaner hides the messages. |
 | | Pack Warnings | Hides LeoneMC's resource pack titles and reminders. |
@@ -50,7 +51,7 @@ The Staff category only appears when your [leonemc.net](https://leonemc.net) pro
 | Reports | Pops up player reports and help requests as notifications, and optionally VPN warnings and banned players trying to join. |
 | Mod Mode Status | A small HUD panel showing mod mode, vanish, whether staff chat is hidden, and how many punishments you have given this session. Each part can be turned off, and the panel can show only while you are in mod mode. |
 
-While staff chat is hidden from capture, the Anticheat panel and staff pop-ups are hidden too.
+Under the Staff modules, the Staff page lists who was flagged recently (with their checks) and the latest reports and help requests, each with a button for the player's profile and one that teleports to them, or joins their server first when they are on another one. While staff chat is hidden from capture, the names there are hidden until you click **Show anyway**, and the Anticheat panel and staff pop-ups are hidden too.
 
 Mod mode is read from LeoneMC's own messages whenever you switch it. Joining a server with "Enable Mod Mode on Join" is silent, so Leone Client learns the items mod mode puts in your hotbar the first time you switch mod mode on and off, and recognises them when you join later. Until then, mod mode after a join shows as unknown, and while it is unknown only vanish can make staff chat visible. Vanish is read from the "You are currently Vanished" action bar and ends as soon as that stops repeating. Only messages from the server count, never player chat. `/leone staff` shows what Leone Client currently knows.
 
@@ -62,7 +63,7 @@ Mod mode is read from LeoneMC's own messages whenever you switch it. Joining a s
 - **Players** looks up any LeoneMC player by name: rank, where they are or when they were last seen, join date, playtime and friends, with their statistics in a tab for each game mode, each stat showing their place on its leaderboard. `/leone profile <name>` opens it directly.
 - **Configs** saves your setup as named profiles. The active profile saves automatically.
 - **Overlays** turns HUD elements on and off: Watermark, Module List, Action Bar, Combat Bar, Notifications, Server, Timers, Session Stats, FPS, Ping, Coordinates, Speed, CPS and Keystrokes, plus Staff Status and Anticheat Panel for staff. Right-click one (or use its gear) for its settings: backgrounds, units, what it shows, colour by value, how many rows a panel lists, and a reset for its position and size.
-- **Modify HUD** lets you drag overlays anywhere and resize them from 50% to 250%, by scrolling over one or dragging the bracket on its bottom-right corner. They snap to the edges and centre lines, and right-clicking one hides it.
+- **Modify HUD** lets you drag overlays anywhere and resize them from 50% to 250%, by scrolling over one or dragging the bracket on its bottom-right corner. They snap to the edges and centre lines, and right-clicking one hides it. Panels that grow (such as Timers, Session Stats and the Anticheat panel) move aside for each other instead of overlapping when they share a corner.
 
 <p align="center"><img src="docs/servers.png" alt="The Servers page" /></p>
 <p align="center"><img src="docs/hud.png" alt="The HUD editor" /></p>
