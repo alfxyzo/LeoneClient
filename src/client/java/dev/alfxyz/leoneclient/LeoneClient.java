@@ -4,6 +4,7 @@ import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.logging.LogUtils;
 import dev.alfxyz.leoneclient.hud.Hud;
 import dev.alfxyz.leoneclient.hud.Notices;
+import dev.alfxyz.leoneclient.hud.WebEscapeNote;
 import dev.alfxyz.leoneclient.module.Module;
 import dev.alfxyz.leoneclient.module.Modules;
 import dev.alfxyz.leoneclient.ui.ChatLineActions;
@@ -82,6 +83,7 @@ public class LeoneClient implements ClientModInitializer {
 			StaffChat.destroy();
 		});
 		Hud.register();
+		WebEscapeNote.register();
 		ChatTabBar.register();
 		ChatLineActions.register();
 		DevAutomation.init();

@@ -26,6 +26,7 @@ import dev.alfxyz.leoneclient.features.Reports;
 import dev.alfxyz.leoneclient.features.SessionStats;
 import dev.alfxyz.leoneclient.features.StaffChatModule;
 import dev.alfxyz.leoneclient.features.Timers;
+import dev.alfxyz.leoneclient.features.WebEscape;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -49,6 +50,7 @@ public final class Modules {
 	public static final AutoJoin AUTO_JOIN = new AutoJoin();
 	public static final AutoReconnect AUTO_RECONNECT = new AutoReconnect();
 	public static final ItemCooldowns ITEM_COOLDOWNS = new ItemCooldowns();
+	public static final WebEscape WEB_ESCAPE = new WebEscape();
 	public static final EnderChestPages ENDER_CHEST_PAGES = new EnderChestPages();
 	public static final Interface INTERFACE = new Interface();
 	public static final AllServers ALL_SERVERS = new AllServers();
@@ -67,7 +69,7 @@ public final class Modules {
 		INTERFACE, ALL_SERVERS, LOG_FILTER,
 		STAFF_CHAT, ANTICHEAT_ALERTS, REPORTS, MOD_MODE,
 		// LeoneMC servers, each only on its own server
-		ITEM_COOLDOWNS);
+		ITEM_COOLDOWNS, WEB_ESCAPE);
 
 	private Modules() {
 	}

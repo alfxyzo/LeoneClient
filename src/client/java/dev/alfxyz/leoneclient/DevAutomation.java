@@ -8,6 +8,7 @@ import dev.alfxyz.leoneclient.features.AutoReconnect;
 import dev.alfxyz.leoneclient.features.ChatTabs;
 import dev.alfxyz.leoneclient.features.ItemCooldowns;
 import dev.alfxyz.leoneclient.features.Timers;
+import dev.alfxyz.leoneclient.features.WebEscape;
 import dev.alfxyz.leoneclient.module.Category;
 import dev.alfxyz.leoneclient.mixin.ChatHistoryAccessor;
 import dev.alfxyz.leoneclient.staffchat.StaffPlaceholder;
@@ -398,6 +399,62 @@ public final class DevAutomation {
 
 	private static ItemCooldowns.Tracker tracker(String id) {
 		return Modules.ITEM_COOLDOWNS.trackers.stream().filter(t -> t.id.equals(id)).findFirst().orElseThrow();
+	}
+
+	private static net.minecraft.core.BlockPos webFeet = net.minecraft.core.BlockPos.ZERO, webEye = net.minecraft.core.BlockPos.ZERO;
+
+	/** Web Escape on your own player (the test world has nobody else): in a web up to the eyes, then only to the waist. */
+	private static void webChecks() {
+		at(200, "web: set up", mc -> {
+			Modules.ALL_SERVERS.setEnabled(true);
+			Category.pretendServer = "ElytraBox";
+			Modules.WEB_ESCAPE.setEnabled(true);
+			WebEscape.debugGliding = true;
+			WebEscape.debugIncludeSelf = true;
+			// a glass platform high in the sky, so the only blocks near are the webs and the glass
+			command(mc, "execute at @p run fill ~-2 ~39 ~-2 ~2 ~39 ~2 minecraft:glass");
+			command(mc, "execute at @p run tp @p ~ ~40 ~ 0 0");
+		});
+		at(1200, "web: webs", mc -> {
+			// where the player really is now: glass under the feet, webs from the feet up to the eyes
+			webFeet = net.minecraft.core.BlockPos.containing(mc.player.position());
+			webEye = net.minecraft.core.BlockPos.containing(mc.player.getEyePosition(1));
+			command(mc, "setblock " + webFeet.getX() + " " + (webFeet.getY() - 1) + " " + webFeet.getZ() + " minecraft:glass");
+			for (int y = webFeet.getY(); y <= webEye.getY(); y++) command(mc, "setblock " + webFeet.getX() + " " + y + " " + webFeet.getZ() + " minecraft:cobweb");
+		});
+		at(700, "web: up to the eyes", mc -> {
+			mc.player.setXRot(0);
+			WebEscape.Look l = WebEscape.look(mc.player, 1);
+			check("eyes inside a web: the crosshair is on the web, so a rocket would hit it (" + l.state() + ")", l.state() == WebEscape.State.BLOCKED && l.aimAtWeb());
+			mc.options.setCameraType(net.minecraft.client.CameraType.THIRD_PERSON_BACK);
+		});
+		shot(600, "56-web-blocked");
+		at(100, "web: head free", mc -> {
+			for (int y = webFeet.getY() + 1; y <= webEye.getY(); y++) command(mc, "setblock " + webFeet.getX() + " " + y + " " + webFeet.getZ() + " minecraft:air");
+		});
+		at(600, "web: waist", mc -> {
+			mc.player.setXRot(0);
+			WebEscape.Look l = WebEscape.look(mc.player, 1);
+			check("only the feet in a web, looking at air: a rocket would boost them out (" + l.state() + ", " + l.webs().size() + " web)", l.state() == WebEscape.State.CAN_ESCAPE && !l.webs().isEmpty());
+			mc.player.setXRot(80);
+			WebEscape.Look down = WebEscape.look(mc.player, 1);
+			check("looking down at the web below: blocked again (" + down.state() + ")", down.state() == WebEscape.State.BLOCKED);
+			mc.player.setXRot(0);
+			WebEscape.debugGliding = false;
+			check("not gliding: a rocket does nothing (" + WebEscape.look(mc.player, 1).state() + ")", WebEscape.look(mc.player, 1).state() == WebEscape.State.NOT_GLIDING);
+			WebEscape.debugGliding = true;
+		});
+		shot(500, "57-web-can-escape");
+		at(100, "web: done", mc -> {
+			mc.options.setCameraType(net.minecraft.client.CameraType.FIRST_PERSON);
+			WebEscape.debugGliding = false;
+			WebEscape.debugIncludeSelf = false;
+			command(mc, "setblock " + webFeet.getX() + " " + webFeet.getY() + " " + webFeet.getZ() + " minecraft:air");
+			command(mc, "execute at @p run tp @p ~ ~-40 ~");
+			Modules.WEB_ESCAPE.reset();
+			Category.pretendServer = null;
+			Modules.ALL_SERVERS.setEnabled(false);
+		});
 	}
 
 	/** Each LeoneMC server's category shows only there, its modules run only there, and ElytraBox's item cooldowns. */
@@ -876,6 +933,7 @@ public final class DevAutomation {
 		chatTabsChecks();
 		networkChecks();
 		serverChecks();
+		webChecks();
 
 		// a full atlas is wiped before the next frame, and drawing carries on (heads, icons and text come back)
 		at(200, "atlas: fill it", mc -> {
