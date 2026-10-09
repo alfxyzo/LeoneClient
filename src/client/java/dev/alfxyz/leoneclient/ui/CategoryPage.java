@@ -40,7 +40,7 @@ final class CategoryPage extends Page {
 			if (m.enabled()) on++;
 		}
 		String count = toggleable == 0 ? "" : on + " of " + toggleable + " on";
-		String hint = category.isServer() ? "Only while you are on " + category.label() : "Click a card to switch it, right-click for settings";
+		String hint = category.isServer() ? "Only while you are on " + category.label() : "Click a module to toggle it, right-click for settings";
 		float cw = ui.text.width(count, Ui.HINT);
 		ui.text.draw(ui.cv, count, x + W - cw, ui.text.baselineFor(Ui.HINT, y + 19), Ui.HINT, Colors.TEXT_SECONDARY);
 		float hw = ui.text.width(hint, Ui.HINT);
