@@ -37,7 +37,8 @@ public final class FriendHighlight extends Module {
 		if (list != patternFor) {
 			patternFor = list;
 			List<String> names = new ArrayList<>();
-			for (Friend f : list) names.add(f.name());
+			// your own names are you, even if a friend shares one
+			for (Friend f : list) if (!Friends.isYourName(f.name())) names.add(f.name());
 			pattern = names.isEmpty() ? null : ChatStyle.words(names);
 		}
 		return pattern;

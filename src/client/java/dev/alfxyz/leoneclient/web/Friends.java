@@ -123,9 +123,21 @@ public final class Friends {
 		return p == null ? List.of() : p.friends();
 	}
 
+	/**
+	 * A friend by the name chat shows. Never one of your own names: a friend can share your LeoneMC name
+	 * (an old account of yours, say), and in chat that name is always you.
+	 */
 	public static @Nullable Friend byName(String name) {
+		if (isYourName(name)) return null;
 		for (Friend f : list()) if (f.name().equalsIgnoreCase(name)) return f;
 		return null;
+	}
+
+	/** Your Minecraft name or the name LeoneMC shows for you. */
+	public static boolean isYourName(String name) {
+		if (name.equalsIgnoreCase(Minecraft.getInstance().getUser().getName())) return true;
+		String shown = Account.name();
+		return shown != null && name.equalsIgnoreCase(shown);
 	}
 
 	public static boolean isFriend(String name) {
