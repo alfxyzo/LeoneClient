@@ -954,7 +954,8 @@ final class Overlays {
 
 	static final class TimersPanel extends Panel {
 		TimersPanel() {
-			super("timers", "Timers", "Event and restart countdowns", END, CENTER, 8, -110);
+			// top right: the right-hand middle is where LeoneMC's sidebar is
+			super("timers", "Timers", "Event and restart countdowns", END, START, 8, 8);
 		}
 
 		@Override
@@ -1003,11 +1004,12 @@ final class Overlays {
 		@Override
 		void row(Context c, int i, float x, float y, float w) {
 			Timers.Countdown t = list(c).get(i);
-			boolean restart = t.kind == Timers.Kind.RESTART;
+			boolean restart = t.kind == Timers.Kind.RESTART, targetRow = t.kind == Timers.Kind.TARGET;
 			long left = t == SAMPLE ? 7 * 60_000 + 30_000 : t.endsAt - System.currentTimeMillis();
-			int color = restart ? 0xFFF87171 : left < 60_000 ? 0xFFFBBF24 : Colors.ACCENT;
-			Gfx.icons().draw(c.cv, restart ? Icons.ALERT : Icons.CLOCK, x + 2, y + 9, 16, 1.8f, color);
-			String clock = left <= 0 ? "Now" : Time.clock(left);
+			int color = restart || targetRow ? 0xFFF87171 : left < 60_000 ? 0xFFFBBF24 : Colors.ACCENT;
+			String icon = restart ? Icons.ALERT : targetRow ? Icons.SWORDS : t.kind == Timers.Kind.ENVOY ? Icons.GEM : Icons.CLOCK;
+			Gfx.icons().draw(c.cv, icon, x + 2, y + 9, 16, 1.8f, color);
+			String clock = t.live ? "Live" : left <= 0 ? "Now" : Time.clock(left);
 			float cw = c.text.width(clock, VALUE_STRONG);
 			c.text.draw(c.cv, clock, x + w - cw, c.text.baselineFor(VALUE_STRONG, y + 17), VALUE_STRONG, left <= 0 ? 0xFF4ADE80 : Colors.TEXT);
 			float tx = x + 2 + 16 + 9, maxW = w - (tx - x) - cw - 10;

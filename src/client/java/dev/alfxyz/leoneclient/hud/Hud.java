@@ -167,6 +167,9 @@ public final class Hud {
 		for (Overlay o : ALL) {
 			if (root.has(o.id) && root.get(o.id).isJsonObject()) o.load(root.getAsJsonObject(o.id));
 		}
+		// the Timers panel used to start on top of LeoneMC's sidebar; layouts never moved from there get the new place
+		Overlay timers = byId("timers");
+		if (timers.ax == Overlay.END && timers.ay == Overlay.CENTER && timers.ox == 8 && timers.oy == -110) timers.resetPosition();
 	}
 
 	public static Overlay byId(String id) {

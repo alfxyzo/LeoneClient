@@ -309,6 +309,76 @@ public final class DevAutomation {
 		});
 	}
 
+	/** Chat lines containing {@code part}, newest first (staff lines unwrapped). */
+	private static List<String> chatWith(Minecraft mc, String part) {
+		List<String> out = new ArrayList<>();
+		for (var m : ((dev.alfxyz.leoneclient.mixin.ChatHistoryAccessor) mc.gui.hud.getChat()).leone$allMessages()) {
+			Component c = m.content() instanceof dev.alfxyz.leoneclient.staffchat.StaffPlaceholder p ? p.real() : m.content();
+			if (c.getString().contains(part)) out.add(c.getString());
+		}
+		return out;
+	}
+
+	private static void command(Minecraft mc, String cmd) {
+		var server = mc.getSingleplayerServer();
+		if (server != null) server.execute(() -> server.getCommands().performPrefixedCommand(server.createCommandSourceStack(), cmd));
+	}
+
+	/** Timers from the sidebar, envoys and the Target; Chat Cleaner's hiding and stacking. */
+	private static void eventAndCleanerChecks() {
+		at(200, "events: sidebar countdown", mc -> {
+			command(mc, "scoreboard objectives add leone dummy \"Elytra Box\"");
+			command(mc, "scoreboard objectives setdisplay sidebar leone");
+			command(mc, "scoreboard players set koth leone 3");
+			command(mc, "scoreboard players display name koth leone \"Koth in: 00:34:04\"");
+			command(mc, "scoreboard players set keyall leone 2");
+			command(mc, "scoreboard players display name keyall leone \"Key All: 00:00:50\"");
+		});
+		at(2600, "events: read", mc -> {
+			var list = Modules.TIMERS.list();
+			boolean koth = list.stream().anyMatch(c -> c.title.equals("KOTH") && Math.abs(c.endsAt - System.currentTimeMillis() - 34 * 60_000 - 4000) < 5000);
+			check("the sidebar's KOTH countdown is followed", koth);
+			check("the sidebar's Key All countdown is followed", list.stream().anyMatch(c -> c.title.equals("Key All")));
+			server(mc, "Envoys | An envoy event will start in 4:59!");
+			server(mc, "TARGET! Some_Player is now the target! Eliminate them to win +250.0 Tokens!");
+		});
+		at(200, "events: chat", mc -> {
+			var list = Modules.TIMERS.list();
+			check("an announced envoy event counts down", list.stream().anyMatch(c -> c.kind == dev.alfxyz.leoneclient.features.Timers.Kind.ENVOY));
+			check("the Target is shown first, live", !list.isEmpty() && list.getFirst().kind == dev.alfxyz.leoneclient.features.Timers.Kind.TARGET && list.getFirst().live);
+		});
+		shot(300, "45-timers-events");
+		at(100, "events: target down", mc -> {
+			server(mc, "TARGET! Some_Player was eliminated by Other_Player, earning them +250.0 Tokens!");
+			server(mc, "Envoys | An envoy event has begun! 12 envoys have spawned around KOTH! (/warp koth)");
+		});
+		at(200, "events: cleared", mc -> {
+			var list = Modules.TIMERS.list();
+			check("the Target goes once eliminated", list.stream().noneMatch(c -> c.kind == dev.alfxyz.leoneclient.features.Timers.Kind.TARGET));
+			check("the envoy countdown goes once it begins", list.stream().noneMatch(c -> c.kind == dev.alfxyz.leoneclient.features.Timers.Kind.ENVOY));
+			command(mc, "scoreboard objectives remove leone");
+		});
+		at(100, "cleaner: broadcasts", mc -> {
+			String me = mc.getUser().getName();
+			server(mc, "Crates | Other_Player has opened a KOTH Crate and won a Eagle Key.");
+			server(mc, "Crates | You received a Feather from Bluebird Key.");
+			server(mc, "Voting | Other_Player has voted using /vote and received a vote key for doing so!");
+			server(mc, "▶ Other_Player has won a coinflip worth 60,000 against Third_Player.");
+			server(mc, "▶ " + me + " has won a coinflip worth 20,000 against Other_Player.");
+			server(mc, "Discord\n \n| Join our discord server for announcements\n| and much more!");
+			for (int i = 0; i < 3; i++) server(mc, "The arena is closing soon");
+		});
+		at(200, "cleaner: result", mc -> {
+			String me = mc.getUser().getName();
+			check("other players' crate openings are hidden", chatWith(mc, "Other_Player has opened a KOTH Crate").isEmpty());
+			check("your own crate reward still shows", !chatWith(mc, "You received a Feather").isEmpty());
+			check("votes and announcement boxes are hidden", chatWith(mc, "has voted using").isEmpty() && chatWith(mc, "Join our discord").isEmpty());
+			check("a coinflip you won still shows, others' do not", !chatWith(mc, me + " has won a coinflip").isEmpty() && chatWith(mc, "Other_Player has won a coinflip").isEmpty());
+			List<String> arena = chatWith(mc, "The arena is closing soon");
+			check("three identical lines become one with [x3] " + arena, arena.size() == 1 && arena.getFirst().endsWith("[x3]"));
+		});
+	}
+
 	private static void buildScript() {
 		t = 0;
 		at(0, "look", mc -> {
@@ -469,6 +539,7 @@ public final class DevAutomation {
 			LOGGER.info("Leone autotest: timers={}", Modules.TIMERS.list().size());
 		});
 		staffStateChecks();
+		eventAndCleanerChecks();
 
 		// a full atlas is wiped before the next frame, and drawing carries on (heads, icons and text come back)
 		at(200, "atlas: fill it", mc -> {

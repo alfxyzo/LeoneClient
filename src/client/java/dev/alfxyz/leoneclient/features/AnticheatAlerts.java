@@ -1,13 +1,11 @@
 package dev.alfxyz.leoneclient.features;
 
 import dev.alfxyz.leoneclient.Chat;
-import dev.alfxyz.leoneclient.mixin.ChatHistoryAccessor;
 import dev.alfxyz.leoneclient.module.Category;
 import dev.alfxyz.leoneclient.module.Module;
 import dev.alfxyz.leoneclient.module.Setting;
 import dev.alfxyz.leoneclient.render.Icons;
 import dev.alfxyz.leoneclient.staffchat.StaffChat;
-import dev.alfxyz.leoneclient.staffchat.StaffPlaceholder;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -16,9 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.multiplayer.chat.GuiMessage;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.chat.Component;
 import net.minecraft.sounds.SoundEvents;
@@ -128,26 +124,11 @@ public final class AnticheatAlerts extends Module {
 		stack.count++;
 		if (!countRepeats.get()) return null;
 		// the newest alert with its count takes the place of the line it repeats
-		takeBack(stack.shownText);
-		Component counted = message.copy().append(Component.literal(" [x" + stack.count + "]").withStyle(ChatFormatting.GOLD));
+		ChatLines.takeBack(stack.shownText);
+		Component counted = ChatLines.counted(message, stack.count);
 		stack.shownText = Chat.plain(counted);
 		stack.shownAt = now;
 		return counted;
-	}
-
-	/** Removes the newest chat line with this text, if it is still there. */
-	private static void takeBack(String text) {
-		var chat = Minecraft.getInstance().gui.hud.getChat();
-		List<GuiMessage> messages = ((ChatHistoryAccessor) chat).leone$allMessages();
-		for (int i = 0; i < Math.min(messages.size(), 100); i++) {
-			Component content = messages.get(i).content();
-			if (content instanceof StaffPlaceholder placeholder) content = placeholder.real();
-			if (Chat.plain(content).equals(text)) {
-				messages.remove(i);
-				((ChatHistoryAccessor) chat).leone$refreshLines();
-				return;
-			}
-		}
 	}
 
 	/** Players flagged in the last few minutes, most recent first. Empty while staff chat is hidden from recordings. */

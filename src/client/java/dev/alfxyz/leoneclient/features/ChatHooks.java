@@ -29,6 +29,7 @@ public final class ChatHooks {
 		Component out = Modules.ANTICHEAT_ALERTS.handle(message, plain);
 		if (out == null) return null;
 		if (Modules.ALERT_FILTER.hides(plain)) return null;
+		if (Modules.CHAT_CLEANER.hides(plain)) return null;
 		if (LeoneMC.active()) {
 			FriendActivity.Event friend = FriendActivity.track(plain);
 			if (friend != null) {
@@ -37,6 +38,8 @@ public final class ChatHooks {
 			}
 		}
 		out = Modules.FRIEND_HIGHLIGHT.handle(out);
-		return Modules.MENTIONS.handle(out, plain);
+		out = Modules.MENTIONS.handle(out, plain);
+		// last, so a repeat is compared with the line exactly as it was shown
+		return Modules.CHAT_CLEANER.stack(out, plain);
 	}
 }

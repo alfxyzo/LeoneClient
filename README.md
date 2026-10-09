@@ -22,11 +22,12 @@ Every module starts switched off, so you only get what you turn on.
 | | Session Stats | Counts your kills, deaths, KDR, kill streak and best streak from the death messages, on a HUD panel. Starts again on login, on each server switch, or never. |
 | Chat | Anti-Mute | Replaces words that LeoneMC's filter mutes for before your message is sent, in chat and in private messages. Groups: discrimination, death wishes, swears and advertisements. |
 | | Alert Filter | Hides the kinds of `[Alert]` broadcast you choose: staff recruitment (hidden by default), purchases, events, streams, tips and others. Proxy restart warnings are never hidden. |
+| | Chat Cleaner | Hides the broadcasts you choose: other players' deaths and killstreaks, crate openings, coinflips, votes, daily rewards, envoy pickups, lobby joins and the rotating announcement boxes. Lines that name you or a friend always show, and so do your own crate rewards. A line repeated straight after itself stacks into one line with a count, such as `[x3]`. |
 | | Mentions | Plays a ping and highlights your name when a player mentions you in chat or staff chat. Join messages, kill messages and staff notices that contain your name do not count, and neither do your own messages. Extra keywords can be added. |
 | Friends | Friend Highlight | Makes your LeoneMC friends' names stand out in chat, with their status on hover. |
 | | Friend Activity | Turns `Friends \| X has joined the server Y.` into a short clickable line, a pop-up, or nothing, and can limit it to your own server. |
 | HUD | Action Bar | Draws the action bar wherever you place it in Modify HUD, with optional backdrop, shadow and fade. |
-| | Timers | Counts down to events (such as Lava Rising) and proxy restarts announced in `[Alert]` messages, on a HUD panel, and warns you a minute before. Works even when Alert Filter hides those alerts. |
+| | Timers | One HUD panel for what is coming: events (such as Lava Rising) and proxy restarts from `[Alert]` messages, the server's own sidebar countdowns (KOTH, Key All, Map Reset), envoy events, and the current Target bounty. Warns you a minute before, and works even when Alert Filter or Chat Cleaner hides the messages. |
 | | Pack Warnings | Hides LeoneMC's resource pack titles and reminders. |
 | Server | Auto Join | Sends you to ElytraBox, WildKits, CoreRaiding, InsaneKits, Lifesteal, Gens, Survival or any server you type when you log in. |
 | | Ender Chest Pages | Makes `/ec (number)` and `/enderchest (number)` run `/pv (number)`. While it is off, those commands go to the server as normal. |

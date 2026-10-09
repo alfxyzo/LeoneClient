@@ -70,6 +70,7 @@ public final class Icons {
 	public static final String INBOX = "M22 12h-6l-2 3h-4l-2-3H2 M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z";
 	public static final String VIDEO_OFF = "M10.66 6H14a2 2 0 0 1 2 2v2.5l5.25-3.06A.5.5 0 0 1 22 7.87v8.26 M16 16a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2 M2 2l20 20";
 	public static final String KEY = "M2.59 18.59A2 2 0 0 0 2 20v2h3v-2h2v-2h2l1.4-1.4a6.5 6.5 0 1 0-4-4Z M16.5 7.5h.01";
+	public static final String FILTER = "M3 6h18 M7 12h10 M10 18h4";
 
 	private record Key(String path, int sizeQ, int strokeQ) {
 	}
