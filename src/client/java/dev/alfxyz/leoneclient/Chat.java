@@ -26,7 +26,8 @@ public final class Chat {
 	public static void info(Component message) {
 		Minecraft mc = Minecraft.getInstance();
 		if (mc.player == null) return;
-		mc.player.sendSystemMessage(prefix().append(message.copy().withStyle(s -> s.withBold(false))));
+		// as the client's own message, so chat modules leave it alone and Chat Tabs shows it in every tab
+		mc.gui.hud.getChat().addClientSystemMessage(prefix().append(message.copy().withStyle(s -> s.withBold(false))));
 	}
 
 	public static void info(String message) {

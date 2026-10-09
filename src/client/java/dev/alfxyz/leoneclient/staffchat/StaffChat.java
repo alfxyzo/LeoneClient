@@ -56,6 +56,11 @@ public final class StaffChat {
 		return window;
 	}
 
+	/** Whether a chat line (colour codes allowed) is staff chat by Staff Chat's rules, including your extra starts. */
+	public static boolean isStaffText(String text) {
+		return rules.isStaff(text);
+	}
+
 	/** True if staff lines are hidden in this frame and drawn by the protected window instead. */
 	public static boolean isHidden() {
 		return hidden;

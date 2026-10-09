@@ -6,6 +6,7 @@ import dev.alfxyz.leoneclient.hud.Hud;
 import dev.alfxyz.leoneclient.hud.Notices;
 import dev.alfxyz.leoneclient.module.Module;
 import dev.alfxyz.leoneclient.module.Modules;
+import dev.alfxyz.leoneclient.ui.ChatTabBar;
 import dev.alfxyz.leoneclient.ui.Colors;
 import dev.alfxyz.leoneclient.ui.LeoneScreen;
 import com.mojang.brigadier.arguments.StringArgumentType;
@@ -45,6 +46,7 @@ public class LeoneClient implements ClientModInitializer {
 		Modules.ENDER_CHEST_PAGES.registerCommands();
 		registerCommands();
 		LeoneMC.onFreshJoin(() -> {
+			StaffState.onFreshJoin();
 			Friends.refresh(false);
 			Account.refresh(false);
 			// both would hide the same staff chat, so only the separate mod's runs; say so once
@@ -79,6 +81,7 @@ public class LeoneClient implements ClientModInitializer {
 			StaffChat.destroy();
 		});
 		Hud.register();
+		ChatTabBar.register();
 		DevAutomation.init();
 	}
 

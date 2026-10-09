@@ -5,6 +5,8 @@
 	"client": [
 		"ChatComponentMixin",
 		"ChatHistoryAccessor",
+		"ChatScreenAccessor",
+		"ChatTabsMixin",
 		"ClientPacketListenerMixin",
 		"DisconnectedScreenAccessor",
 		"GameRendererMixin",

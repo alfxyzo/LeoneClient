@@ -45,6 +45,9 @@ public final class StaffState {
 
 	private static final String MOD_ON = "you are now in mod mode";
 	private static final String MOD_OFF = "you are no longer in mod mode";
+	private static final String TALK_ON = "you are now talking in staff chat", TALK_OFF = "you are no longer talking in staff chat";
+	/** LeoneMC's staff chat toggle; it lasts across its servers, so only a new connection resets it. */
+	private static boolean talkingInStaffChat;
 	/** Answers that only come while in mod mode, or only while out of it. */
 	private static final List<String> IMPLIES_ON = List.of("you cannot use this command while in staff mode", "you can only disable mod mode in spawn");
 	private static final List<String> IMPLIES_OFF = List.of("you can only enable mod mode in spawn");
@@ -124,13 +127,14 @@ public final class StaffState {
 			case OFF -> "off";
 			case UNKNOWN -> "unknown";
 		};
+		String talk = talkingInStaffChat ? " What you type goes to staff chat." : "";
 		String how = switch (modSource) {
 			case MESSAGE -> " (from LeoneMC's message)";
 			case ITEMS -> " (recognised from your hotbar)";
 			case NONE -> learned.isEmpty() ? " (no message since you joined; switch mod mode once so its items can be learned)" : "";
 		};
 		return "Mod mode " + mode + how + ". " + (vanished() ? "Vanished." : "Not vanished.")
-			+ (learned.isEmpty() ? "" : " Mod mode items learned: " + learned.size() + ".");
+			+ (learned.isEmpty() ? "" : " Mod mode items learned: " + learned.size() + ".") + talk;
 	}
 
 	// ------------------------------------------------------------------ events
@@ -138,6 +142,10 @@ public final class StaffState {
 	/** A message from the server (never player chat). */
 	public static void onServerMessage(String plain) {
 		String text = plain.strip().toLowerCase(Locale.ROOT);
+		// "✔ You are now talking in staff chat." and "❌ You are no longer talking in staff chat."
+		String words = text.replaceFirst("^[^a-z]+", "");
+		if (words.startsWith(TALK_ON)) talkingInStaffChat = true;
+		else if (words.startsWith(TALK_OFF)) talkingInStaffChat = false;
 		if (text.startsWith(MOD_ON)) {
 			setModMode(ModMode.ON, Source.MESSAGE);
 		} else if (text.startsWith(MOD_OFF)) {
@@ -163,6 +171,16 @@ public final class StaffState {
 			vanishFirstAt = now;
 		}
 		vanishLastAt = now;
+	}
+
+	/** Whether what you type goes to staff chat (LeoneMC's staff chat toggle), as far as its messages tell. */
+	public static boolean talkingInStaffChat() {
+		return talkingInStaffChat;
+	}
+
+	/** A new connection to LeoneMC: the staff chat toggle starts off until LeoneMC says otherwise. */
+	public static void onFreshJoin() {
+		talkingInStaffChat = false;
 	}
 
 	/** Joined a server, including a switch between LeoneMC's servers: mod mode and vanish belong to the server. */

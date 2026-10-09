@@ -8,6 +8,7 @@ import dev.alfxyz.leoneclient.features.AntiMute;
 import dev.alfxyz.leoneclient.features.AutoJoin;
 import dev.alfxyz.leoneclient.features.AutoReconnect;
 import dev.alfxyz.leoneclient.features.ChatCleaner;
+import dev.alfxyz.leoneclient.features.ChatTabs;
 import dev.alfxyz.leoneclient.features.CombatBar;
 import dev.alfxyz.leoneclient.features.CombatLogGuard;
 import dev.alfxyz.leoneclient.features.CombatTimer;
@@ -37,6 +38,7 @@ public final class Modules {
 	public static final AlertFilter ALERT_FILTER = new AlertFilter();
 	public static final Mentions MENTIONS = new Mentions();
 	public static final ChatCleaner CHAT_CLEANER = new ChatCleaner();
+	public static final ChatTabs CHAT_TABS = new ChatTabs();
 	public static final FriendHighlight FRIEND_HIGHLIGHT = new FriendHighlight();
 	public static final FriendActivity FRIEND_ACTIVITY = new FriendActivity();
 	public static final PlayerLookup PLAYER_LOOKUP = new PlayerLookup();
@@ -56,7 +58,7 @@ public final class Modules {
 
 	private static final List<Module> ALL = List.of(
 		COMBAT_TIMER, COMBAT_BAR, COMBAT_LOG_GUARD, SESSION_STATS,
-		ANTI_MUTE, ALERT_FILTER, CHAT_CLEANER, MENTIONS,
+		ANTI_MUTE, ALERT_FILTER, CHAT_CLEANER, MENTIONS, CHAT_TABS,
 		FRIEND_HIGHLIGHT, FRIEND_ACTIVITY, PLAYER_LOOKUP,
 		ACTION_BAR, TIMERS, PACK_WARNINGS,
 		AUTO_JOIN, AUTO_RECONNECT, ENDER_CHEST_PAGES,

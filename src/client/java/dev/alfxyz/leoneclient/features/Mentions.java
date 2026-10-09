@@ -76,6 +76,12 @@ public final class Mentions extends Module {
 		return null;
 	}
 
+	/** Whether some text names you: your Minecraft or LeoneMC name, or one of the extra words. Works while the module is off. */
+	public boolean namesYou(String text) {
+		Pattern p = pattern();
+		return p != null && p.matcher(text).find();
+	}
+
 	/** Pings and highlights. Returns the message to show. */
 	public Component handle(Component message, String plain) {
 		if (!enabled()) return message;

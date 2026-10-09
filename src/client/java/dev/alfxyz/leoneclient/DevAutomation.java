@@ -5,6 +5,9 @@ import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.logging.LogUtils;
 import dev.alfxyz.leoneclient.features.ActionBars;
 import dev.alfxyz.leoneclient.features.AutoReconnect;
+import dev.alfxyz.leoneclient.features.ChatTabs;
+import dev.alfxyz.leoneclient.mixin.ChatHistoryAccessor;
+import dev.alfxyz.leoneclient.staffchat.StaffPlaceholder;
 import dev.alfxyz.leoneclient.hud.Hud;
 import dev.alfxyz.leoneclient.hud.HudEditorScreen;
 import dev.alfxyz.leoneclient.module.Modules;
@@ -23,11 +26,13 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
+import net.minecraft.client.gui.components.ChatComponent;
 import net.minecraft.client.gui.screens.DisconnectedScreen;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.client.gui.screens.worldselection.SelectWorldScreen;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.multiplayer.ServerData;
+import net.minecraft.client.multiplayer.chat.GuiMessage;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.input.MouseButtonInfo;
 import net.minecraft.network.chat.Component;
@@ -368,6 +373,94 @@ public final class DevAutomation {
 		});
 	}
 
+	private static boolean has(int kinds, int wanted) {
+		return (kinds & wanted) == wanted;
+	}
+
+	/** Each message the chat is drawing, newest first, as plain text. */
+	private static List<String> shownTexts(Minecraft mc) {
+		List<String> out = new ArrayList<>();
+		GuiMessage last = null;
+		for (GuiMessage.Line line : ((ChatHistoryAccessor) mc.gui.hud.getChat()).leone$lines()) {
+			if (line.parent() == last) continue;
+			last = line.parent();
+			Component c = last.content();
+			if (c instanceof StaffPlaceholder p) c = p.real();
+			out.add(Chat.plain(c));
+		}
+		return out;
+	}
+
+	/** Sorting real LeoneMC lines into tabs, switching tabs, unread counts, replies following you, and the typing note. */
+	private static void chatTabsChecks() {
+		at(200, "tabs: sorting", mc -> {
+			ChatTabs t = Modules.CHAT_TABS;
+			String me = mc.getUser().getName();
+			check("a private message to you is a private message, and for you", has(t.kinds("(From Player_Two): are you free?", false), ChatTabs.PRIVATE | ChatTabs.MENTION));
+			check("your own private message is yours", has(t.kinds("(To Player_Two): give me a minute", false), ChatTabs.PRIVATE | ChatTabs.OWN));
+			check("public chat is player chat", t.kinds("Gold Player_Two [9] » anyone selling keys", false) == ChatTabs.PLAYER);
+			check("a player saying your name mentions you", has(t.kinds("Gold Player_Two » gg " + me, false), ChatTabs.PLAYER | ChatTabs.MENTION));
+			int own = t.kinds("Owner " + me + " » hello " + me, false);
+			check("your own chat is yours, never a mention", has(own, ChatTabs.PLAYER | ChatTabs.OWN) && !has(own, ChatTabs.MENTION));
+			check("staff chat is staff chat", has(t.kinds("[Staff] (ElytraBox) Helper_One: anyone free?", false), ChatTabs.STAFF));
+			check("the staff chat toggle belongs with staff chat", t.kinds("✔ You are now talking in staff chat.", false) == ChatTabs.STAFF);
+			check("anticheat alerts and reports are alerts", t.kinds("Anticheat > Cheater flagged Reach A (13.0x) (ElytraBox)", false) == ChatTabs.ALERT
+				&& t.kinds("[Report] (WildKits) Bad_Guy was reported by Good_Guy for hacking.", false) == ChatTabs.ALERT);
+			check("deaths, events and command errors are the server's", t.kinds("☠ Victim_One was slain by Player_Two.", false) == ChatTabs.SERVER
+				&& t.kinds("Envoys | An envoy event will start in 4:59!", false) == ChatTabs.SERVER
+				&& t.kinds("Error: You already own a plot!", false) == ChatTabs.SERVER);
+		});
+		at(100, "tabs: on", mc -> {
+			Modules.CHAT_TABS.setEnabled(true);
+			Modules.CHAT_TABS.tabs.selected.add("Mentions");
+			mc.gui.hud.getChat().clearMessages(false);
+			server(mc, "Gold Player_Two » anyone selling keys");
+			server(mc, "(From Player_Two): are you free?");
+			server(mc, "(To Player_Two): give me a minute");
+			server(mc, "[Staff] (ElytraBox) Helper_One: anyone free to check WildKits?");
+			server(mc, "Anticheat > Cheater flagged Reach A (13.0x) (ElytraBox)");
+			server(mc, "Envoys | An envoy event will start in 4:59!");
+			Chat.info("Leone Client's own notices show in every tab.");
+			Modules.CHAT_TABS.select(ChatTabs.Tab.MESSAGES);
+		});
+		at(200, "tabs: messages", mc -> {
+			List<String> lines = shownTexts(mc);
+			check("Messages shows the two private messages and the client notice, nothing else " + lines,
+				lines.size() == 3 && lines.stream().allMatch(l -> l.startsWith("(") || l.startsWith("Leone")));
+			server(mc, "[Staff] (WildKits) Helper_Two: on it");
+			server(mc, "(From Player_Three): tpa?");
+		});
+		at(200, "tabs: unread", mc -> {
+			ChatTabs t = Modules.CHAT_TABS;
+			check("staff chat that arrives meanwhile is unread in Staff", t.unread(ChatTabs.Tab.STAFF) == 1);
+			check("a message shown in the tab you are on is not unread anywhere", t.unread(ChatTabs.Tab.MENTIONS) == 0);
+			mc.gui.openChatScreen(ChatComponent.ChatMethod.MESSAGE);
+		});
+		shot(700, "50-chat-tabs-messages");
+		at(100, "tabs: reply", mc -> mc.getConnection().sendCommand("leonetestnothing"));
+		at(900, "tabs: reply shown", mc -> {
+			List<String> lines = shownTexts(mc);
+			check("the reply to a command shows in the tab you are on " + lines, lines.stream().anyMatch(l -> l.toLowerCase(Locale.ROOT).contains("unknown")));
+			server(mc, "✔ You are now talking in staff chat.");
+			Modules.CHAT_TABS.select(ChatTabs.Tab.STAFF);
+		});
+		at(200, "tabs: staff", mc -> {
+			check("the staff chat toggle is noticed", StaffState.talkingInStaffChat());
+			check("Staff shows staff chat and the toggle " + shownTexts(mc), shownTexts(mc).stream().filter(l -> !l.startsWith("Leone")).allMatch(l -> l.startsWith("[Staff]") || l.contains("staff chat")));
+		});
+		shot(600, "51-chat-tabs-staff");
+		at(100, "tabs: close", mc -> {
+			server(mc, "❌ You are no longer talking in staff chat.");
+			mc.gui.setScreen(null);
+		});
+		at(300, "tabs: back to all", mc -> {
+			check("the staff chat toggle going off is noticed", !StaffState.talkingInStaffChat());
+			check("closing chat goes back to All", Modules.CHAT_TABS.current() == ChatTabs.Tab.ALL);
+			check("All shows everything again (" + shownTexts(mc).size() + " messages)", shownTexts(mc).size() >= 11);
+			Modules.CHAT_TABS.reset();
+		});
+	}
+
 	private static List<String> widgetTexts(Minecraft mc) {
 		List<String> out = new ArrayList<>();
 		if (mc.gui.screen() == null) return out;
@@ -640,6 +733,7 @@ public final class DevAutomation {
 		eventAndCleanerChecks();
 		keybindChecks();
 		reconnectChecks();
+		chatTabsChecks();
 
 		// a full atlas is wiped before the next frame, and drawing carries on (heads, icons and text come back)
 		at(200, "atlas: fill it", mc -> {
