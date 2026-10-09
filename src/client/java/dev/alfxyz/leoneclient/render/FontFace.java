@@ -3,6 +3,7 @@ package dev.alfxyz.leoneclient.render;
 import com.mojang.logging.LogUtils;
 import it.unimi.dsi.fastutil.ints.Int2FloatOpenHashMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import it.unimi.dsi.fastutil.longs.Long2FloatOpenHashMap;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
@@ -42,6 +43,9 @@ public final class FontFace {
 	private final Int2FloatOpenHashMap advances = new Int2FloatOpenHashMap();
 	private final Long2FloatOpenHashMap kerns = new Long2FloatOpenHashMap();
 	private final Int2ObjectOpenHashMap<Int2ObjectOpenHashMap<Glyph>> sizes = new Int2ObjectOpenHashMap<>();
+	/** Sizes (quarter pixels) that have glyphs made, at any phase. */
+	private final IntOpenHashSet madeSizes = new IntOpenHashSet();
+	private final SizeChooser sizeChooser = new SizeChooser();
 	private int atlasGeneration = -1;
 
 	private FontFace(ByteBuffer data, FT_Face face) {
@@ -114,25 +118,30 @@ public final class FontFace {
 	public static final int PHASES = 3;
 
 	/** Glyph bitmap at {@code sizeQ / 4} pixels per em, shifted right by {@code phase / PHASES} of a pixel. */
-	public Glyph glyph(Atlas atlas, int cp, int sizeQ, int phase) {
+	/** The size, in quarter pixels, to rasterize text wanted at {@code sizeQ} (see {@link SizeChooser}). */
+	public int rasterSize(Atlas atlas, int sizeQ) {
+		checkGeneration(atlas);
+		return sizeChooser.choose(sizeQ, madeSizes, madeSizes.contains(sizeQ), 0.8f, 1.25f);
+	}
+
+	private void checkGeneration(Atlas atlas) {
 		if (atlasGeneration != atlas.generation()) {
 			sizes.clear();
+			madeSizes.clear();
 			atlasGeneration = atlas.generation();
 		}
+	}
+
+	public Glyph glyph(Atlas atlas, int cp, int sizeQ, int phase) {
+		checkGeneration(atlas);
+		madeSizes.add(sizeQ);
 		int key = sizeQ * PHASES + phase;
 		Int2ObjectOpenHashMap<Glyph> map = sizes.computeIfAbsent(key, k -> new Int2ObjectOpenHashMap<>());
 		Glyph g = map.get(cp);
 		if (g != null) return g;
 		g = rasterize(atlas, cp, sizeQ / 4f, phase);
-		if (g == null) {
-			// atlas full: start over (callers see the cleared generation next frame)
-			atlas.clear();
-			sizes.clear();
-			atlasGeneration = atlas.generation();
-			map = sizes.computeIfAbsent(key, k -> new Int2ObjectOpenHashMap<>());
-			g = rasterize(atlas, cp, sizeQ / 4f, phase);
-			if (g == null) g = new Glyph(0, 0, 0, 0, null);
-		}
+		// atlas full: it is wiped before the next frame, so leave this glyph out for one frame without remembering it
+		if (g == null) return new Glyph(0, 0, 0, 0, null);
 		map.put(cp, g);
 		return g;
 	}

@@ -363,6 +363,6 @@ public class HudEditorScreen extends Screen {
 	@Override
 	public void onClose() {
 		LeoneConfig.save();
-		Minecraft.getInstance().gui.setScreen(new LeoneScreen(LeoneScreen.Kind.OVERLAYS));
+		Minecraft.getInstance().gui.setScreen(LeoneScreen.returningTo(LeoneScreen.Kind.OVERLAYS));
 	}
 }

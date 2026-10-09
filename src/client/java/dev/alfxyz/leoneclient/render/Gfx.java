@@ -9,6 +9,7 @@ public final class Gfx {
 	private static TextRenderer text;
 	private static Icons icons;
 	private static Picture logo;
+	private static int frame;
 
 	private Gfx() {
 	}
@@ -22,6 +23,17 @@ public final class Gfx {
 			logo = new Picture(atlas, LeoneClientMod.id("textures/gui/logo.png"));
 		}
 		text.setVanilla(Modules.INTERFACE.minecraftFont());
+	}
+
+	/** Start of a frame, before anything draws. */
+	public static synchronized void startFrame() {
+		frame++;
+		if (atlas != null) atlas.startFrame();
+	}
+
+	/** Counts frames, for telling a size that holds still from one that is animating. */
+	public static int frame() {
+		return frame;
 	}
 
 	public static Atlas atlas() {

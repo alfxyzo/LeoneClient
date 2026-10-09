@@ -1,6 +1,7 @@
 package dev.alfxyz.leoneclient.mixin;
 
 import dev.alfxyz.leoneclient.module.Modules;
+import dev.alfxyz.leoneclient.render.Gfx;
 import dev.alfxyz.leoneclient.staffchat.OverlayFrame;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
@@ -21,6 +22,7 @@ public abstract class MinecraftMixin {
 	/** One frame, which runs after the tick that handles chat and keys. Staff chat decides per frame. */
 	@Inject(method = "renderFrame", at = @At("HEAD"))
 	private void leoneclient$beginFrame(boolean advanceGameTime, CallbackInfo ci) {
+		Gfx.startFrame();
 		OverlayFrame.begin();
 	}
 

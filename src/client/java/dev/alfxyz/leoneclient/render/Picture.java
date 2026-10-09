@@ -4,6 +4,8 @@ import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.logging.LogUtils;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.ints.IntArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import net.minecraft.client.Minecraft;
@@ -24,7 +26,8 @@ public final class Picture {
 	private int srcW, srcH;
 	private float @Nullable [] srcR, srcG, srcB, srcA; // premultiplied
 	private boolean failed;
-	private final Map<Integer, Atlas.Region> images = new HashMap<>();
+	private final Int2ObjectOpenHashMap<Atlas.Region> images = new Int2ObjectOpenHashMap<>();
+	private final SizeChooser imageSizes = new SizeChooser(), glowSizes = new SizeChooser();
 	private final Map<Long, Atlas.Region> glows = new HashMap<>();
 	private final Map<Long, Integer> glowPad = new HashMap<>();
 	private int generation = -1;
@@ -95,7 +98,10 @@ public final class Picture {
 		if ((cv.withAlpha(color) >>> 24) == 0 || !ensureSource()) return;
 		checkGeneration();
 		int px = Math.max(2, Math.round(size / cv.px()));
-		Atlas.Region r = images.computeIfAbsent(px, this::buildImage);
+		// while the size animates, a near size already made is stretched instead of making a new one
+		int use = imageSizes.choose(px, images.keySet(), images.containsKey(px), 0.75f, 1.35f);
+		Atlas.Region r = images.get(use);
+		if (r == null) r = images.computeIfAbsent(use, this::buildImage);
 		if (r == null) return;
 		cv.image(r, x, y, size, size, color);
 	}
@@ -105,9 +111,14 @@ public final class Picture {
 		if ((cv.withAlpha(color) >>> 24) == 0 || !ensureSource()) return;
 		checkGeneration();
 		float devPer = 1f / cv.px();
-		int px = Math.max(2, Math.round(size * devPer / 2)); // glow is smooth, half resolution is plenty
-		float sigmaPx = sigma * devPer / 2;
-		long key = ((long) px << 32) | Math.round(sigmaPx * 4);
+		int wantPx = Math.max(2, Math.round(size * devPer / 2)); // glow is smooth, half resolution is plenty
+		// an animating glow reuses a near size made with the same blur (scaled, the blur scales with it)
+		int sigmaQ = Math.round(sigma * 4);
+		IntArrayList madePx = new IntArrayList();
+		for (long k : glows.keySet()) if ((int) k == sigmaQ) madePx.add((int) (k >>> 32));
+		int px = glowSizes.choose(wantPx, madePx, madePx.contains(wantPx), 0.75f, 1.35f);
+		float sigmaPx = sigma * devPer / 2 * px / wantPx;
+		long key = ((long) px << 32) | sigmaQ;
 		Atlas.Region r = glows.computeIfAbsent(key, k -> buildGlow(px, sigmaPx, k));
 		if (r == null) return;
 		int pad = glowPad.getOrDefault(key, 0);

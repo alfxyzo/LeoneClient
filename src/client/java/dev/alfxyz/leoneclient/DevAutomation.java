@@ -60,6 +60,7 @@ public final class DevAutomation {
 	private static Path shots;
 	private static final InputConstants.Key RIGHT_SHIFT = InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_RIGHT_SHIFT);
 	private static long t;
+	private static int atlasGenBefore;
 
 	private DevAutomation() {
 	}
@@ -260,13 +261,18 @@ public final class DevAutomation {
 			Modules.STAFF_CHAT.reveal.value = true;
 		});
 		at(100, "staff: reveal back on", mc -> check("turning reveal on shows it straight away", StaffChat.revealed() && !StaffChat.isHidden()));
-		at(3600, "staff: mod mode off", mc -> {
+		at(1800, "staff: mod mode off", mc -> {
 			server(mc, "You are no longer in mod mode");
 			hotbar(mc, NORMAL_HOTBAR);
 		});
 		at(200, "staff: off by message", mc -> check("mod mode off from the message", StaffState.modMode() == StaffState.ModMode.OFF));
-		at(3600, "staff: learned", mc -> {
-			check("mod mode's hotbar items were learned", StaffState.itemsLearned());
+		// switched back on soon after, as people do when they only meant to check: it must still learn
+		at(1600, "staff: back on quickly", mc -> {
+			server(mc, "You are now in mod mode");
+			hotbar(mc, MOD_HOTBAR);
+		});
+		at(1600, "staff: learned", mc -> {
+			check("mod mode's hotbar items were learned from quick switches", StaffState.itemsLearned());
 			LOGGER.info("Leone autotest: {}", StaffState.describe());
 			// a silent join in mod mode, as with LeoneMC's "Enable Mod Mode on Join"
 			StaffState.onJoin();
@@ -361,6 +367,23 @@ public final class DevAutomation {
 		at(100, "back", mc -> click(mc, screen(mc).debugBackButton(), 0));
 		at(400, "hub back", mc -> click(mc, screen(mc).debugHub(), 0));
 		at(900, "settle", mc -> { });
+		// scrolling over the wheel turns it a category at a time
+		at(100, "wheel scroll down", mc -> {
+			float[] hub = screen(mc).debugHub();
+			screen(mc).mouseScrolled(hub[0], hub[1], 0, -1);
+		});
+		at(150, "wheel scroll down again", mc -> {
+			float[] hub = screen(mc).debugHub();
+			screen(mc).mouseScrolled(hub[0], hub[1], 0, -1);
+		});
+		at(150, "wheel scroll up", mc -> {
+			check("scrolling down over the wheel opens the next category (" + screen(mc).debugCategory() + ")", screen(mc).debugCategory() == 1);
+			float[] hub = screen(mc).debugHub();
+			screen(mc).mouseScrolled(hub[0], hub[1], 0, 1);
+		});
+		at(150, "wheel scrolled", mc -> check("scrolling up turns it back (" + screen(mc).debugCategory() + ")", screen(mc).debugCategory() == 0));
+		at(700, "hub back again", mc -> click(mc, screen(mc).debugHub(), 0));
+		at(900, "settle", mc -> { });
 
 		// dock
 		at(100, "dock friends", mc -> click(mc, screen(mc).debugDock(2), 0));
@@ -397,7 +420,10 @@ public final class DevAutomation {
 		at(100, "done", mc -> {
 			if (mc.gui.screen() instanceof HudEditorScreen e) e.onClose();
 		});
-		at(1500, "close", mc -> key(mc, GLFW.GLFW_KEY_ESCAPE));
+		shot(40, "35a-back-from-editor-start");
+		shot(120, "35b-back-from-editor-middle");
+		shot(400, "35c-back-from-editor-end");
+		at(940, "close", mc -> key(mc, GLFW.GLFW_KEY_ESCAPE));
 		at(600, "check closed", mc -> LOGGER.info("Leone autotest: screen after escape = {}", mc.gui.screen()));
 
 		// ---- features with everything on
@@ -443,6 +469,29 @@ public final class DevAutomation {
 			LOGGER.info("Leone autotest: timers={}", Modules.TIMERS.list().size());
 		});
 		staffStateChecks();
+
+		// a full atlas is wiped before the next frame, and drawing carries on (heads, icons and text come back)
+		at(200, "atlas: fill it", mc -> {
+			var atlas = dev.alfxyz.leoneclient.render.Gfx.atlas();
+			atlasGenBefore = atlas.generation();
+			java.nio.ByteBuffer block = org.lwjgl.system.MemoryUtil.memAlloc(512 * 512 * 4);
+			try {
+				int n = 0;
+				while (atlas.add(512, 512, block) != null && n < 200) n++;
+				LOGGER.info("Leone autotest: atlas took {} blocks before it was full", n);
+			} finally {
+				org.lwjgl.system.MemoryUtil.memFree(block);
+			}
+		});
+		at(300, "atlas: recovered", mc -> {
+			var atlas = dev.alfxyz.leoneclient.render.Gfx.atlas();
+			java.nio.ByteBuffer one = org.lwjgl.system.MemoryUtil.memAlloc(64 * 64 * 4);
+			try {
+				check("a full atlas is wiped at the next frame and takes images again", atlas.generation() > atlasGenBefore && atlas.add(64, 64, one) != null);
+			} finally {
+				org.lwjgl.system.MemoryUtil.memFree(one);
+			}
+		});
 
 		// ---- README images: the menu as a player without a staff rank sees it, with no friends loaded
 		at(200, "docs: daytime", mc -> {

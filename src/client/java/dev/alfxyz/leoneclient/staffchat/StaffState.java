@@ -53,8 +53,11 @@ public final class StaffState {
 	/** After leaving mod mode, vanish messages still on their way are ignored for this long. */
 	private static final long IGNORE_VANISH_AFTER_LEAVING_MS = 1500;
 	private static final long DEFAULT_VANISH_GRACE_MS = 3000, MIN_VANISH_GRACE_MS = 1500, MAX_VANISH_GRACE_MS = 6000;
-	/** Mod mode's items are read this long after it switches on or off, once the server has handed them out. */
-	private static final long SNAPSHOT_DELAY_MS = 3000;
+	/**
+	 * Once LeoneMC has said you are in or out of mod mode, the hotbar counts as settled for that state
+	 * after this long (the server swaps the items straight away), and is read again every few ticks.
+	 */
+	private static final long SETTLED_MS = 1000;
 	/**
 	 * Without mod mode's items in the hotbar this long after joining, mod mode counts as off. LeoneMC can
 	 * take a few seconds after a join to put you in mod mode.
@@ -73,10 +76,10 @@ public final class StaffState {
 
 	// learning mod mode's items: what the hotbar held in mod mode, and out of it
 	private static Set<String> learned = Set.of();
-	/** The last hotbar in and out of mod mode, each with the server it was on. */
+	/** The latest settled hotbar in and out of mod mode, each with the server it was on. */
 	private static Snapshot lastOn, lastOff;
-	private static boolean snapshotFor;
-	private static long snapshotAt;
+	/** When LeoneMC last said mod mode switched (or which it is). */
+	private static long messageAt;
 	private static int ticks;
 	private static boolean loaded;
 
@@ -137,10 +140,8 @@ public final class StaffState {
 		String text = plain.strip().toLowerCase(Locale.ROOT);
 		if (text.startsWith(MOD_ON)) {
 			setModMode(ModMode.ON, Source.MESSAGE);
-			scheduleSnapshot(true);
 		} else if (text.startsWith(MOD_OFF)) {
 			setModMode(ModMode.OFF, Source.MESSAGE);
-			scheduleSnapshot(false);
 			// leaving mod mode unvanishes you; drop vanish at once rather than when the action bar stops
 			vanishFirstAt = vanishLastAt = 0;
 			ignoreVanishUntil = System.currentTimeMillis() + IGNORE_VANISH_AFTER_LEAVING_MS;
@@ -171,14 +172,12 @@ public final class StaffState {
 		joinedAt = System.currentTimeMillis();
 		vanishFirstAt = vanishLastAt = 0;
 		ignoreVanishUntil = 0;
-		snapshotAt = 0;
 		setModMode(ModMode.UNKNOWN, Source.NONE);
 	}
 
 	public static void onDisconnect() {
 		inWorld = false;
 		vanishFirstAt = vanishLastAt = 0;
-		snapshotAt = 0;
 		setModMode(ModMode.UNKNOWN, Source.NONE);
 	}
 
@@ -186,13 +185,14 @@ public final class StaffState {
 	public static void tick(Minecraft mc) {
 		if (!inWorld || mc.player == null) return;
 		long now = System.currentTimeMillis();
-		if (snapshotAt != 0 && now >= snapshotAt) {
-			snapshotAt = 0;
-			// only if mod mode is still what it was when the snapshot was asked for
-			if (modSource == Source.MESSAGE && inModMode() == snapshotFor) learn(snapshotFor, new Snapshot(String.valueOf(LeoneMC.server()), hotbar(mc)));
+		ticks++;
+		if (modSource == Source.MESSAGE) {
+			// keep the settled hotbar of whichever state LeoneMC confirmed, so switching quickly still teaches
+			if (now - messageAt >= SETTLED_MS && ticks % 5 == 0) learn(inModMode(), new Snapshot(String.valueOf(LeoneMC.server()), hotbar(mc)));
+			return;
 		}
-		// a message is final; otherwise look at the hotbar twice a second
-		if (modSource == Source.MESSAGE || learned.isEmpty() || ++ticks % 10 != 0) return;
+		// without a message, look at the hotbar twice a second
+		if (learned.isEmpty() || ticks % 10 != 0) return;
 		Set<String> items = hotbar(mc);
 		int matches = 0;
 		for (String s : learned) if (items.contains(s)) matches++;
@@ -208,6 +208,7 @@ public final class StaffState {
 
 	private static void setModMode(ModMode mode, Source source) {
 		if (mode != modMode) modChangedAt = System.currentTimeMillis();
+		if (source == Source.MESSAGE) messageAt = System.currentTimeMillis();
 		modMode = mode;
 		modSource = source;
 	}
@@ -223,11 +224,6 @@ public final class StaffState {
 	private static boolean startsWithAny(String text, List<String> starts) {
 		for (String s : starts) if (text.startsWith(s)) return true;
 		return false;
-	}
-
-	private static void scheduleSnapshot(boolean on) {
-		snapshotFor = on;
-		snapshotAt = System.currentTimeMillis() + SNAPSHOT_DELAY_MS;
 	}
 
 	/** The hotbar and off hand, as item id plus shown name, so renamed staff tools are told apart from ordinary items. */
@@ -257,7 +253,7 @@ public final class StaffState {
 		// one odd item is not enough to recognise mod mode by
 		if (kit.size() < 2 || kit.equals(learned)) return;
 		learned = Set.copyOf(kit);
-		StaffChat.LOGGER.info("Learned {} items that mod mode puts in your hotbar", learned.size());
+		StaffChat.LOGGER.info("Learned {} items that mod mode puts in your hotbar: {}", learned.size(), learned.stream().sorted().toList());
 		save();
 	}
 

@@ -119,7 +119,8 @@ public final class TextRenderer {
 		FontFace f = face(st.weight());
 		float devPerUnit = 1f / cv.px();
 		float truePx = st.size() * devPerUnit;
-		int sizeQ = Math.max(4, Math.round(truePx * 4));
+		// a size that is animating borrows a near one already made, so zooms do not fill the atlas
+		int sizeQ = f.rasterSize(atlas, Math.max(4, Math.round(truePx * 4)));
 		float rasterPx = sizeQ / 4f;
 		float k = st.size() / rasterPx; // design units per raster pixel
 		boolean snap = cv.axisAligned();

@@ -2,6 +2,7 @@ package dev.alfxyz.leoneclient.render;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -76,6 +77,9 @@ public final class Icons {
 	private final Atlas atlas;
 	private final Map<String, float[]> segments = new HashMap<>();
 	private final Map<Key, Atlas.Region> cache = new HashMap<>();
+	/** Sizes made for each icon and stroke. */
+	private final Map<String, IntOpenHashSet> madeSizes = new HashMap<>();
+	private final SizeChooser sizeChooser = new SizeChooser();
 	private int generation = -1;
 
 	public Icons(Atlas atlas) {
@@ -90,8 +94,14 @@ public final class Icons {
 		if ((cv.withAlpha(color) >>> 24) == 0) return;
 		float devPerUnit = 1f / cv.px();
 		float px = size * devPerUnit;
-		int sizeQ = Math.max(4, Math.round(px * 2));
-		Atlas.Region r = region(path, sizeQ, Math.round(stroke * 100));
+		int strokeQ = Math.round(stroke * 100);
+		checkGeneration();
+		// while the icon's size animates, a near size already made is stretched instead of making a new one
+		IntOpenHashSet made = madeSizes.computeIfAbsent(path + "|" + strokeQ, k -> new IntOpenHashSet());
+		int wanted = Math.max(4, Math.round(px * 2));
+		int sizeQ = sizeChooser.choose(wanted, made, made.contains(wanted), 0.75f, 1.35f);
+		Atlas.Region r = region(path, sizeQ, strokeQ);
+		if (r != null) made.add(sizeQ);
 		if (r == null) return;
 		float rasterPx = sizeQ / 2f;
 		// the raster has one pixel of padding on every side
@@ -107,11 +117,16 @@ public final class Icons {
 		}
 	}
 
-	private Atlas.Region region(String path, int sizeQ, int strokeQ) {
+	private void checkGeneration() {
 		if (generation != atlas.generation()) {
 			cache.clear();
+			madeSizes.clear();
 			generation = atlas.generation();
 		}
+	}
+
+	private Atlas.Region region(String path, int sizeQ, int strokeQ) {
+		checkGeneration();
 		Key key = new Key(path, sizeQ, strokeQ);
 		Atlas.Region r = cache.get(key);
 		if (r != null) return r;

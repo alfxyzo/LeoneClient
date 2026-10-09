@@ -41,6 +41,9 @@ public class LeoneScreen extends Screen {
 	/** What the side panel shows. */
 	public enum Kind { CATEGORY, SEARCH, SERVERS, FRIENDS, PLAYERS, CONFIGS, OVERLAYS }
 
+	/** Scroll gathered over the wheel towards the next notch, and when it last turned. */
+	private double wheelScroll, lastSpinAt;
+
 	/** When each module last refused to switch on, for its card's shake. */
 	private final java.util.Map<String, Double> denied = new java.util.HashMap<>();
 
@@ -58,6 +61,15 @@ public class LeoneScreen extends Screen {
 	private double closingAt = -1;
 	private @Nullable Supplier<Screen> afterClose;
 	private @Nullable Kind initialKind;
+	/**
+	 * Coming back from the HUD editor: the wheel, hub and page are already in place and the whole menu
+	 * fades in together, instead of replaying the opening animation over a page that is already open.
+	 */
+	private boolean returning;
+	private double returnedAt = -1;
+	/** Longer than any part of the opening animation, so "opened this long ago" means fully open. */
+	private static final double SETTLED_MS = 5000;
+	private static final double RETURN_MS = 220;
 
 	private boolean panelOpen;
 	private Kind kind = Kind.CATEGORY;
@@ -122,9 +134,25 @@ public class LeoneScreen extends Screen {
 		this(parent, null);
 	}
 
-	/** Opens the menu with a dock page already showing (used when returning from the HUD editor). */
+	/** Opens the menu with a dock page already showing. */
 	public LeoneScreen(@Nullable Kind initial) {
 		this(null, initial);
+	}
+
+	/** The menu as it was, back from the HUD editor, on a dock page. */
+	public static LeoneScreen returningTo(Kind page) {
+		LeoneScreen s = new LeoneScreen(page);
+		s.returning = true;
+		return s;
+	}
+
+	private void startOpen(double now) {
+		if (returning) {
+			openedAt = now - SETTLED_MS;
+			returnedAt = now;
+		} else {
+			openedAt = now;
+		}
 	}
 
 	private LeoneScreen(@Nullable Screen parent, @Nullable Kind initial) {
@@ -200,11 +228,14 @@ public class LeoneScreen extends Screen {
 	/** 0..1 strength of the background treatment (blur and dim). */
 	private float backdrop(double now, double duration) {
 		if (openedAt < 0) return 0;
+		// after the HUD editor the blur comes back quickly, with the rest of the menu
+		double from = returnedAt >= 0 ? returnedAt : openedAt;
+		double len = returnedAt >= 0 ? RETURN_MS : duration;
 		if (closing()) {
-			float open = Ease.progress(closingAt, openedAt, 0, duration, Ease.EASE);
+			float open = Ease.progress(closingAt, from, 0, len, Ease.EASE);
 			return open * (1 - Ease.progress(now, closingAt, 0, 300, Ease.EASE));
 		}
-		return Ease.progress(now, openedAt, 0, duration, Ease.EASE);
+		return Ease.progress(now, from, 0, len, Ease.EASE);
 	}
 
 	/** Blur radius the game renderer should use this frame, or -1 to leave it alone. */
@@ -231,7 +262,7 @@ public class LeoneScreen extends Screen {
 	@Override
 	public void extractBackground(GuiGraphicsExtractor g, int mx, int my, float a) {
 		double now = now();
-		if (openedAt < 0) openedAt = now;
+		if (openedAt < 0) startOpen(now);
 		if (minecraft.level == null) extractPanorama(g, a);
 		if (blurRadiusOverride() >= 1) g.blurBeforeThisStratum();
 		float k = backdrop(now, 480);
@@ -282,10 +313,11 @@ public class LeoneScreen extends Screen {
 		Gfx.ensure();
 		Modules.INTERFACE.apply();
 		double now = now();
-		if (openedAt < 0) openedAt = now;
+		if (openedAt < 0) startOpen(now);
 		if (initialKind != null) {
 			openPage(initialKind, 0);
 			initialKind = null;
+			if (returning) settleOpenPage(now);
 		}
 		if (panelOut && panelShown && now - panelOutAt >= 260) {
 			panelShown = false;
@@ -308,6 +340,11 @@ public class LeoneScreen extends Screen {
 		float closeP = closing() ? Ease.progress(now, closingAt, 0, 300, Ease.EASE) : 0;
 		cv.scaleAround(1 - 0.05f * closeP, CX, CY);
 		cv.mulAlpha(1 - closeP);
+		if (returnedAt >= 0) {
+			float back = Ease.progress(now, returnedAt, 0, RETURN_MS, Ease.EASE);
+			cv.scaleAround(0.985f + 0.015f * back, CX, CY);
+			cv.mulAlpha(back);
+		}
 
 		drawPulses(cv, now);
 		drawWheel(cv, now, mdx, mdy);
@@ -786,6 +823,16 @@ public class LeoneScreen extends Screen {
 		page(k, cat).opened();
 	}
 
+	/** Puts the page just opened, and the wheel beside it, straight into place. */
+	private void settleOpenPage(double now) {
+		panelInAt = now - SETTLED_MS;
+		connectorAt = now - SETTLED_MS;
+		beginContent(now - SETTLED_MS, true);
+		ringRot.snap(ringTarget);
+		groupX.snap(-330);
+		groupScale.snap(0.8f);
+	}
+
 	private void back() {
 		double now = now();
 		panelOpen = false;
@@ -899,6 +946,11 @@ public class LeoneScreen extends Screen {
 		float gx = groupX.target(), gs = groupScale.target(), rot = ringRot.target();
 		double a = Math.toRadians(-90 + i * seg + rot);
 		return designToGui(CX + gx + (float) Math.cos(a) * R_LABEL * gs, CY + (float) Math.sin(a) * R_LABEL * gs);
+	}
+
+	/** The open category, or -1. */
+	public int debugCategory() {
+		return selectedSegment();
 	}
 
 	public float[] debugHub() {
@@ -1031,11 +1083,43 @@ public class LeoneScreen extends Screen {
 
 	@Override
 	public boolean mouseScrolled(double x, double y, double scrollX, double scrollY) {
-		if (closing() || !panelShown || panelOut || settingsFor != null) return false;
-		if (x >= panelRect[0] && x < panelRect[2] && y >= panelRect[1] && y < panelRect[3]) {
-			return shownPage().scroll(scrollY);
+		if (closing()) return false;
+		boolean overPanel = panelShown && !panelOut && x >= panelRect[0] && x < panelRect[2] && y >= panelRect[1] && y < panelRect[3];
+		if (overPanel) return settingsFor == null && shownPage().scroll(scrollY);
+		if (scrollY != 0 && overWheel(x, y)) {
+			spinWheel(scrollY);
+			return true;
 		}
 		return false;
+	}
+
+	/** True when a GUI point is over the wheel, hub included. */
+	private boolean overWheel(double x, double y) {
+		double now = now();
+		float s = scale(), ox = offsetX();
+		float mdx = (float) ((x - ox) / s), mdy = (float) (y / s);
+		float gx = groupX.get(now), gs = groupScale.get(now);
+		float wx = CX + (mdx - CX - gx) / gs, wy = CY + (mdy - CY) / gs;
+		return Math.hypot(wx - CX, wy - CY) <= R_OUT + 12;
+	}
+
+	/**
+	 * Scrolling over the wheel turns it a category at a time: down for the next, up for the previous.
+	 * Small trackpad steps add up to one notch, and the wheel never turns faster than it can animate.
+	 */
+	private void spinWheel(double amount) {
+		wheelScroll += amount;
+		double now = now();
+		if (Math.abs(wheelScroll) < 1 || now - lastSpinAt < 70) return;
+		int step = wheelScroll > 0 ? -1 : 1;
+		wheelScroll = 0;
+		lastSpinAt = now;
+		boolean onCategory = panelOpen && kind == Kind.CATEGORY;
+		int from = onCategory ? catIdx : step > 0 ? -1 : 0;
+		openPage(Kind.CATEGORY, Math.floorMod(from + step, segs));
+		if (Modules.INTERFACE.sounds.get()) {
+			Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK.value(), 1.15F, 0.1F));
+		}
 	}
 
 	@Override

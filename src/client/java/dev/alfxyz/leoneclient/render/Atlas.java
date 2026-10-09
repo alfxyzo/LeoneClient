@@ -7,17 +7,22 @@ import com.mojang.blaze3d.textures.GpuSampler;
 import com.mojang.blaze3d.textures.GpuTexture;
 import com.mojang.blaze3d.textures.GpuTextureView;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
 import net.minecraft.client.gui.render.TextureSetup;
 import org.lwjgl.system.MemoryUtil;
 
 /**
  * One linear-filtered RGBA texture that holds every glyph, icon and image the
  * menu draws, plus an opaque white block used for untextured geometry. Regions
- * are packed in shelves. When it fills up, everything is thrown away and
- * re-rasterized lazily.
+ * are packed in shelves. When it fills up, it is wiped at the start of the next
+ * frame (never part-way through one, since the GUI is drawn after the whole frame
+ * is built) and everything is rasterized again as it is next drawn.
  */
 public final class Atlas {
-	public static final int SIZE = 2048;
+	public static final int SIZE = 4096;
+	/** Rows wiped per upload, so clearing never needs one buffer the size of the whole texture. */
+	private static final int CLEAR_ROWS = 256;
 	private static final int PAD = 2;
 
 	private GpuTexture texture;
@@ -25,8 +30,15 @@ public final class Atlas {
 	private GpuSampler sampler;
 	private TextureSetup setup;
 
-	private int shelfX, shelfY, shelfH;
+	/**
+	 * Rows of the atlas, each holding images of about its own height: {top, height, used width}. A new
+	 * image goes in the snuggest row with room, so small glyphs never sit in a row made tall by a head.
+	 */
+	private final List<int[]> shelves = new ArrayList<>();
+	private int nextShelfY;
 	private int generation;
+	/** Set when something did not fit; the atlas is wiped at the start of the next frame. */
+	private boolean full;
 
 	/** UV of the centre of the white block. */
 	public final float whiteU = 2f / SIZE, whiteV = 2f / SIZE;
@@ -57,40 +69,60 @@ public final class Atlas {
 		return generation;
 	}
 
+	/** Called at the start of every frame, before anything is drawn: wipes the atlas if something did not fit last frame. */
+	public void startFrame() {
+		if (!full || texture == null || texture.isClosed()) return;
+		full = false;
+		clear();
+	}
+
 	/** Wipes the texture to transparent white and resets packing. */
 	public void clear() {
 		generation++;
-		ByteBuffer buf = MemoryUtil.memAlloc(SIZE * SIZE * 4);
+		ByteBuffer buf = MemoryUtil.memAlloc(SIZE * CLEAR_ROWS * 4);
 		try {
-			for (int i = 0; i < SIZE * SIZE; i++) buf.putInt(i * 4, 0x00FFFFFF);
-			// opaque white block in the top-left corner
-			for (int y = 0; y < 4; y++) for (int x = 0; x < 4; x++) buf.putInt((y * SIZE + x) * 4, 0xFFFFFFFF);
-			RenderSystem.getDevice().createCommandEncoder().writeToTexture(texture, buf, 0, 0, 0, 0, SIZE, SIZE);
+			var encoder = RenderSystem.getDevice().createCommandEncoder();
+			for (int y0 = 0; y0 < SIZE; y0 += CLEAR_ROWS) {
+				for (int i = 0; i < SIZE * CLEAR_ROWS; i++) buf.putInt(i * 4, 0x00FFFFFF);
+				// opaque white block in the top-left corner
+				if (y0 == 0) for (int y = 0; y < 4; y++) for (int x = 0; x < 4; x++) buf.putInt((y * SIZE + x) * 4, 0xFFFFFFFF);
+				encoder.writeToTexture(texture, buf, 0, 0, 0, y0, SIZE, CLEAR_ROWS);
+			}
 		} finally {
 			MemoryUtil.memFree(buf);
 		}
-		shelfX = 4 + PAD;
-		shelfY = 0;
-		shelfH = 4;
+		shelves.clear();
+		// the first row starts after the white block
+		shelves.add(new int[] {0, 4 + PAD, 4 + PAD});
+		nextShelfY = 4 + PAD;
 	}
 
 	/**
-	 * Uploads a {@code w x h} RGBA image (bytes R,G,B,A) and returns its region,
-	 * or {@code null} if the atlas is full.
+	 * Uploads a {@code w x h} RGBA image (bytes R,G,B,A) and returns its region, or {@code null} if the
+	 * atlas is full. Then it is wiped before the next frame, so callers must not remember the miss.
 	 */
 	public Region add(int w, int h, ByteBuffer rgba) {
 		ensureCreated();
 		if (w <= 0 || h <= 0) return new Region(0, 0, 0, 0, generation);
 		if (w + PAD > SIZE || h + PAD > SIZE) return null;
-		if (shelfX + w + PAD > SIZE) {
-			shelfY += shelfH + PAD;
-			shelfX = 0;
-			shelfH = 0;
+		int need = h + PAD, width = w + PAD;
+		int[] row = null;
+		for (int[] s : shelves) {
+			// a row up to a quarter taller than needed (and a few pixels) is a good fit
+			if (s[1] >= need && s[1] <= need * 5 / 4 + 3 && s[2] + width <= SIZE && (row == null || s[1] < row[1])) row = s;
 		}
-		if (shelfY + h + PAD > SIZE) return null;
-		int x = shelfX, y = shelfY;
-		shelfX += w + PAD;
-		shelfH = Math.max(shelfH, h);
+		if (row == null) {
+			int rowH = (need + 3) / 4 * 4;
+			if (nextShelfY + rowH > SIZE) {
+				full = true;
+				return null;
+			}
+			row = new int[] {nextShelfY, rowH, 0};
+			shelves.add(row);
+			nextShelfY += rowH;
+		}
+		int x = row[2], y = row[0];
+		row[2] += width;
 		RenderSystem.getDevice().createCommandEncoder().writeToTexture(texture, rgba, 0, 0, x, y, w, h);
 		return new Region(x, y, w, h, generation);
 	}
