@@ -392,6 +392,41 @@ public final class DevAutomation {
 		return out;
 	}
 
+	/** LeoneMC is recognised by any address: plainly LeoneMC's ones at once, others by its signs, then remembered. */
+	private static void networkChecks() {
+		at(200, "network: addresses", mc -> {
+			check("any address with leonemc in it is LeoneMC", LeoneMC.isLeoneAddress("play.leonemc.gg") && LeoneMC.isLeoneAddress("EU.LeoneMC.net:25565")
+				&& LeoneMC.isLeoneAddress("leonemc.minehut.gg."));
+			check("other servers, Minehut ones included, are not LeoneMC by address", !LeoneMC.isLeoneAddress("hypixel.net") && !LeoneMC.isLeoneAddress("someserver.minehut.gg"));
+			LeoneMC.debugJoin("leone-alias.example");
+			check("an unknown address is watched, not assumed", !LeoneMC.connected() && LeoneMC.debugProbing());
+			// a hub's sidebar: a title, and the address on the last line
+			command(mc, "scoreboard objectives add hub dummy \"Lobby\"");
+			command(mc, "scoreboard objectives setdisplay sidebar hub");
+			command(mc, "scoreboard players set site hub 0");
+			command(mc, "scoreboard players display name site hub \"play.leonemc.net\"");
+		});
+		at(2500, "network: sidebar sign", mc -> {
+			check("LeoneMC's sidebar is recognised at an unknown address", LeoneMC.connected() && !LeoneMC.debugProbing());
+			check("and the address is remembered for next time", LeoneMC.isKnownAddress("leone-alias.example"));
+			LeoneMC.debugForget("leone-alias.example");
+			command(mc, "scoreboard objectives remove hub");
+			LeoneMC.debugJoin("leone-alias-two.example");
+			server(mc, " \nDiscord\n \n| Join our discord server for announcements\n \n→ discord.gg/leonemc\n ");
+		});
+		at(300, "network: announcement sign", mc -> {
+			check("one of LeoneMC's announcement boxes is recognised too", LeoneMC.connected());
+			LeoneMC.debugForget("leone-alias-two.example");
+			LeoneMC.debugJoin("other-server.example");
+			server(mc, "Gold Player_Two » come to play.leonemc.net");
+		});
+		at(2500, "network: player chat", mc -> {
+			check("a player naming LeoneMC in chat does not make a server LeoneMC", !LeoneMC.connected());
+			LeoneMC.debugForget("other-server.example");
+			check("forgotten addresses are forgotten", !LeoneMC.isKnownAddress("leone-alias.example"));
+		});
+	}
+
 	/** Sorting real LeoneMC lines into tabs, switching tabs, unread counts, replies following you, and the typing note. */
 	private static void chatTabsChecks() {
 		at(200, "tabs: sorting", mc -> {
@@ -757,6 +792,7 @@ public final class DevAutomation {
 		keybindChecks();
 		reconnectChecks();
 		chatTabsChecks();
+		networkChecks();
 
 		// a full atlas is wiped before the next frame, and drawing carries on (heads, icons and text come back)
 		at(200, "atlas: fill it", mc -> {

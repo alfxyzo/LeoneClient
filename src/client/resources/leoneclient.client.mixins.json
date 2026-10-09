@@ -13,6 +13,7 @@
 		"HudMixin",
 		"KeyboardHandlerMixin",
 		"MinecraftMixin",
+		"TabListAccessor",
 		"TransferThreadMixin",
 		"staff.BakedSheetGlyphAccessor",
 		"staff.ChatDrawingBackgroundMixin",

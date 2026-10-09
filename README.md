@@ -98,6 +98,7 @@ The jar is written to `build/libs/`. `gradle.properties` points Gradle at the Wi
 
 ## Notes
 
+- LeoneMC is recognised however you join it. An address with "leonemc" in it (play.leonemc.net, play.leonemc.gg, eu.leonemc.net and so on) counts at once. Any other address is watched for LeoneMC's own signs: its name in the sidebar or the tab list, or one of its announcement boxes. Once seen, that address is remembered (in `config/leoneclient/network.json`) and counts at once next time. Player chat never counts, so another server cannot be mistaken for LeoneMC because someone mentions it.
 - The menu uses Segoe UI on Windows and falls back to the Minecraft font elsewhere (or when Interface > Font is set to Minecraft).
 - Friends, profiles and player search come from leonemc.net, heads from mc-heads.net. Reading a profile page does not add to its view count. The friends list is refreshed at most every 90 seconds and cached on disk; each friend's own profile is read for their server or last-seen time at most once a minute while they are online and every five minutes while they are offline.
 - leonemc.net can list a player under a different name from their Minecraft one. Player lookup falls back to the players on your server and Mojang's public name lookup, and the Message buttons use the player's Minecraft name.

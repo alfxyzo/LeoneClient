@@ -53,6 +53,9 @@ public final class AutoReconnect extends Module {
 	private @Nullable ServerData last;
 	private @Nullable String lastServer;
 	private int tries;
+	/** The server-list entry while on LeoneMC, and when that was last seen. */
+	private @Nullable ServerData leoneEntry;
+	private long onLeoneAt;
 	/** When a LeoneMC connection last dropped, and whether a reconnect of ours is under way. */
 	private long droppedAt;
 	private boolean attempting;
@@ -70,15 +73,15 @@ public final class AutoReconnect extends Module {
 		super("auto_reconnect", Category.SERVER, "Auto Reconnect", Icons.REFRESH,
 			"Puts you back on LeoneMC after a restart or a dropped connection, and back on the server you were on. Never after a kick or a ban.", false);
 		ClientPlayConnectionEvents.JOIN.register((handler, sender, mc) -> {
-			ServerData data = mc.getCurrentServer();
-			boolean leone = data != null && !mc.isLocalServer() && LeoneMC.isLeoneAddress(data.ip);
-			last = leone ? data : null;
-			if (!leone) lastServer = null;
 			tries = 0;
 			attempting = false;
 		});
+		// whether the connection that dropped was LeoneMC, however it was joined (LeoneMC may forget first)
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, mc) -> {
-			if (last != null) droppedAt = System.currentTimeMillis();
+			if (leoneEntry != null && System.currentTimeMillis() - onLeoneAt < 3000) {
+				last = leoneEntry;
+				droppedAt = System.currentTimeMillis();
+			}
 		});
 		// after Auto Join's own listener (it was made first), so a return trip wins over the favourite server
 		LeoneMC.onFreshJoin(() -> {
@@ -100,8 +103,12 @@ public final class AutoReconnect extends Module {
 
 	@Override
 	public void tick(Minecraft mc) {
-		// the server you are on, kept up to date so it is known when the connection drops
-		if (LeoneMC.connected() && LeoneMC.server() != null) lastServer = LeoneMC.server();
+		// where you are, kept up to date so it is known when the connection drops
+		if (LeoneMC.connected() && mc.getCurrentServer() != null) {
+			leoneEntry = mc.getCurrentServer();
+			onLeoneAt = System.currentTimeMillis();
+			if (LeoneMC.server() != null) lastServer = LeoneMC.server();
+		}
 	}
 
 	private void onDisconnectedScreen(DisconnectedScreen screen) {
@@ -167,6 +174,7 @@ public final class AutoReconnect extends Module {
 	/** For the autotest: as if a LeoneMC connection to this entry had just dropped. */
 	public void debugDropped(ServerData data, String server) {
 		last = data;
+		leoneEntry = data;
 		lastServer = server;
 		droppedAt = System.currentTimeMillis();
 	}
@@ -174,6 +182,7 @@ public final class AutoReconnect extends Module {
 	/** For the autotest: forgets the pretend connection. */
 	public void debugForget() {
 		last = null;
+		leoneEntry = null;
 		lastServer = null;
 		counting = null;
 		button = null;
