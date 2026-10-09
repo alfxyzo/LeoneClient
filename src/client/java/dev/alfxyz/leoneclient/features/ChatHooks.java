@@ -26,9 +26,9 @@ public final class ChatHooks {
 		Modules.SESSION_STATS.track(plain);
 		Modules.MOD_MODE.track(plain);
 		Modules.REPORTS.track(plain);
-		if (Modules.ANTICHEAT_ALERTS.handle(plain)) return null;
+		Component out = Modules.ANTICHEAT_ALERTS.handle(message, plain);
+		if (out == null) return null;
 		if (Modules.ALERT_FILTER.hides(plain)) return null;
-		Component out = message;
 		if (LeoneMC.active()) {
 			FriendActivity.Event friend = FriendActivity.track(plain);
 			if (friend != null) {

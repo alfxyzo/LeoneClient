@@ -1,5 +1,7 @@
 package dev.alfxyz.leoneclient.ui;
 
+import dev.alfxyz.leoneclient.hud.Overlay;
+import dev.alfxyz.leoneclient.LeoneConfig;
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.alfxyz.leoneclient.LeoneMC;
 import dev.alfxyz.leoneclient.anim.Anim;
@@ -19,7 +21,7 @@ import org.jspecify.annotations.Nullable;
  * per setting group, laid out in two balanced columns.
  */
 final class ModuleSettingsView {
-	private static final float COL_W = (Page.W - 12) / 2, CARD_GAP = 12, CORE_H = 148, EMPTY_H = 96;
+	private static final float COL_W = (Page.W - 12) / 2, CARD_GAP = 12, ROW = 49, EMPTY_H = 96;
 	private static final float IW = COL_W - 2 - 28;
 	private final LeoneScreen screen;
 	private final Map<Setting.Text, TextInput> inputs = new HashMap<>();
@@ -99,7 +101,7 @@ final class ModuleSettingsView {
 
 	private static List<Card> cards(Ui ui, Module m) {
 		List<Card> out = new ArrayList<>();
-		if (m.toggleable()) out.add(new Card(null, List.of(), true, CORE_H));
+		if (m.toggleable()) out.add(new Card(null, List.of(), true, coreHeight(m)));
 		Map<String, List<Setting>> groups = new LinkedHashMap<>();
 		for (Setting s : m.settings) if (s.shown()) groups.computeIfAbsent(s.group, k -> new ArrayList<>()).add(s);
 		for (Map.Entry<String, List<Setting>> e : groups.entrySet()) out.add(new Card(e.getKey(), e.getValue(), false, groupHeight(ui, e.getValue())));
@@ -146,7 +148,7 @@ final class ModuleSettingsView {
 		ui.icons.draw(ui.cv, Icons.BACK, x0 + 11, y0 + 11, 16, 2, Colors.TEXT);
 		ui.hit(x0, y0, 38, 38, screen::closeSettings, null);
 		float tx = x0 + 50, ty = y0;
-		ui.text.draw(ui.cv, m.category.displayName, tx, ty + ui.text.ascent(Ui.HINT), Ui.HINT, Colors.TEXT_HINT);
+		ui.text.draw(ui.cv, m.breadcrumb(), tx, ty + ui.text.ascent(Ui.HINT), Ui.HINT, Colors.TEXT_HINT);
 		ty += ui.text.lineHeight(Ui.HINT) + 4;
 		ui.text.draw(ui.cv, m.name, tx, ty + ui.text.ascent(Ui.H2), Ui.H2, Colors.TEXT);
 		float bx = tx + ui.text.width(m.name, Ui.H2) + 12, by = ty + ui.text.lineHeight(Ui.H2) / 2 + 1;
@@ -175,21 +177,65 @@ final class ModuleSettingsView {
 		ui.centred(msg, Ui.DESC, x, y, COL_W, EMPTY_H, Colors.TEXT_HINT);
 	}
 
+	/** The first card: on or off, then whichever of keybind, Module List and layout this item has. */
+	private static float coreHeight(Module m) {
+		int rows = 1 + (m.hasKeybind() ? 1 : 0) + (m.inModuleList() ? 1 : 0) + (m instanceof OverlaySettings ? 1 : 0);
+		return rows * ROW + 1;
+	}
+
 	private void coreCard(Ui ui, float x, float y, Module m) {
-		float w = COL_W;
-		ui.card(x, y, w, CORE_H);
+		float w = COL_W, h = coreHeight(m);
+		ui.card(x, y, w, h);
 		float right = x + w - 1 - 12;
-		float r0 = y + 1;
-		ui.text.draw(ui.cv, "Enabled", x + 15, ui.text.baselineFor(Ui.BODY, r0 + 24), Ui.BODY, Colors.TEXT);
+		float r = y + 1;
+		boolean overlay = m instanceof OverlaySettings;
+
+		ui.text.draw(ui.cv, overlay ? "Shown" : "Enabled", x + 15, ui.text.baselineFor(Ui.BODY, r + 24), Ui.BODY, Colors.TEXT);
 		Anim en = ui.anim(m.key() + "#enabled", m.enabled() ? 1 : 0);
 		en.set(m.enabled() ? 1 : 0, ui.now, 150, Ease.EASE);
-		ui.switchToggle(right - 44 + 5, r0 + 24 - 10, true, en.get(ui.now));
-		ui.hit(x, r0 + 4, w, 40, () -> screen.toggle(m), null);
+		ui.switchToggle(right - 44 + 5, r + 24 - 10, true, en.get(ui.now));
+		ui.hit(x, r + 4, w, 40, () -> screen.toggle(m), null);
 		String blockedWhy = m.unavailable();
-		ui.tip(x, r0 + 4, w - 60, 40, blockedWhy != null ? blockedWhy : "Turns " + m.name + " on or off.");
-		ui.cv.fillRect(x + 1, r0 + 48, x + w - 1, r0 + 49, Colors.white(0.07f));
+		ui.tip(x, r + 4, w - 60, 40, blockedWhy != null ? blockedWhy : (overlay ? "Shows " : "Turns ") + m.name + (overlay ? " on your HUD." : " on or off."));
+		r = nextRow(ui, x, w, r, y + h);
 
-		float r1 = r0 + 49;
+		if (m.hasKeybind()) {
+			keybindRow(ui, x, r, right, m);
+			r = nextRow(ui, x, w, r, y + h);
+		}
+
+		if (m.inModuleList()) {
+			ui.text.draw(ui.cv, "Show in Module List", x + 15, ui.text.baselineFor(Ui.BODY, r + 24), Ui.BODY, Colors.TEXT);
+			Anim vis = ui.anim(m.key() + "#visible", m.visible ? 1 : 0);
+			vis.set(m.visible ? 1 : 0, ui.now, 150, Ease.EASE);
+			ui.switchToggle(right - 44 + 5, r + 24 - 10, true, vis.get(ui.now));
+			ui.hit(x, r + 4, w, 40, () -> m.visible = !m.visible, null);
+			ui.tip(x, r + 4, w - 60, 40, "Lists " + m.name + " in the Module List overlay while it is on.");
+			r = nextRow(ui, x, w, r, y + h);
+		}
+
+		if (m instanceof OverlaySettings os) {
+			Overlay o = os.overlay;
+			ui.text.draw(ui.cv, "Position and size", x + 15, ui.text.baselineFor(Ui.BODY, r + 24), Ui.BODY, Colors.TEXT);
+			float bw = ui.buttonWidth("Reset", Icons.REFRESH, Ui.BUTTON);
+			ui.button(m.key() + "#reset", right - bw, r + 10, 28, "Reset", Icons.REFRESH, Ui.Btn.GHOST, true, () -> {
+				o.resetPosition();
+				LeoneConfig.save();
+			});
+			String size = Math.round(o.scale * 100) + "%";
+			float sw = ui.text.width(size, Ui.VALUE);
+			ui.text.draw(ui.cv, size, right - bw - 10 - sw, ui.text.baselineFor(Ui.VALUE, r + 24), Ui.VALUE, Colors.TEXT_MUTED);
+			ui.tip(x, r + 4, w - bw - sw - 30, 40, "Puts " + m.name + " back where it started, at its normal size. Move and resize it with Modify HUD.");
+		}
+	}
+
+	/** Draws the line under a row unless it is the last, and returns where the next row starts. */
+	private static float nextRow(Ui ui, float x, float w, float r, float bottom) {
+		if (r + ROW < bottom - 1) ui.cv.fillRect(x + 1, r + ROW - 1, x + w - 1, r + ROW, Colors.white(0.07f));
+		return r + ROW;
+	}
+
+	private void keybindRow(Ui ui, float x, float r1, float right, Module m) {
 		ui.text.draw(ui.cv, "Keybind", x + 15, ui.text.baselineFor(Ui.BODY, r1 + 24), Ui.BODY, Colors.TEXT);
 		ui.tip(x, r1 + 4, 80, 40, "A key that switches " + m.name + " on or off while you play. Click the button, then press the key. Escape cancels.");
 		float segY = r1 + 10;
@@ -214,15 +260,6 @@ final class ModuleSettingsView {
 			m.bind = -1;
 			screen.setBinding(null);
 		});
-		ui.cv.fillRect(x + 1, r1 + 48, x + w - 1, r1 + 49, Colors.white(0.07f));
-
-		float r2 = r1 + 49;
-		ui.text.draw(ui.cv, "Show in Module List", x + 15, ui.text.baselineFor(Ui.BODY, r2 + 24), Ui.BODY, Colors.TEXT);
-		Anim vis = ui.anim(m.key() + "#visible", m.visible ? 1 : 0);
-		vis.set(m.visible ? 1 : 0, ui.now, 150, Ease.EASE);
-		ui.switchToggle(right - 44 + 5, r2 + 24 - 10, true, vis.get(ui.now));
-		ui.hit(x, r2 + 4, w, 40, () -> m.visible = !m.visible, null);
-		ui.tip(x, r2 + 4, w - 60, 40, "Lists " + m.name + " in the Module List overlay while it is on.");
 	}
 
 	static String keyName(int key) {

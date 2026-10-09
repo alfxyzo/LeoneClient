@@ -31,6 +31,8 @@ public final class Timers extends Module {
 		"Counts down to events such as Lava Rising and Sword events.");
 	public final Setting.Toggle restarts = add(new Setting.Toggle("restarts", "Proxy restarts", "SHOW", true),
 		"Counts down to a proxy restart, so you are not caught mid-fight when it disconnects you.");
+	public final Setting.Slider shownAtOnce = add(new Setting.Slider("shown", "Shown at once", "PANEL", 1, 6, 1, 4, "%.0f"),
+		"The most countdowns the panel lists, soonest first.");
 	public final Setting.Toggle warn = add(new Setting.Toggle("warn", "Warn a minute before", "SHOW", true),
 		"Shows a notification and plays a sound when a countdown reaches one minute.");
 

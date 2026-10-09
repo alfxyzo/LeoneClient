@@ -21,6 +21,9 @@ public final class SessionStats extends Module {
 
 	public final Setting.Choice reset = add(new Setting.Choice("reset", "Start again", "RESET", List.of("On login", "On server switch", "Never"), "On server switch"),
 		"When the counts go back to zero. Server switch also covers logging in.");
+	public static final String KILLS = "Kills", DEATHS = "Deaths", KDR = "KDR", STREAK = "Streak", BEST = "Best streak";
+	public final Setting.Chips show = add(new Setting.Chips("show", "Show", "PANEL", List.of(KILLS, DEATHS, KDR, STREAK, BEST), List.of(KILLS, DEATHS, KDR, STREAK)),
+		"Which numbers the panel shows.");
 	private int kills, deaths, streak, best;
 	private String lastServer;
 

@@ -30,7 +30,8 @@ public class HudEditorScreen extends Screen {
 	private static final Style HINT = Style.of(12, Weight.REGULAR);
 	private static final Style BUTTON = Style.of(12.5f, Weight.REGULAR);
 	private static final Style TAG = Style.of(11.5f, Weight.REGULAR);
-	private static final float SNAP = 6, MARGIN = 8, HANDLE = 9;
+	/** How far from an overlay's bottom-right corner its resize grip can be caught. */
+	private static final float SNAP = 6, MARGIN = 8, GRIP = 14;
 
 	private final Canvas cv = Gfx.newCanvas();
 	private final double openedAt = System.nanoTime() / 1e6;
@@ -101,15 +102,14 @@ public class HudEditorScreen extends Screen {
 			if (mdx >= r[0] - 3 && mdx < r[0] + r[2] + 3 && mdy >= r[1] - 3 && mdy < r[1] + r[3] + 3) hovered = o;
 		}
 		boolean anyEnabled = !rects.isEmpty();
+		Overlay gripHover = dragging == null && resizing == null ? handleAt(mdx, mdy) : null;
 		for (Map.Entry<Overlay, float[]> e : rects.entrySet()) {
 			float[] r = e.getValue();
 			Overlay held = dragging != null ? dragging : resizing;
-			boolean active = e.getKey() == held || held == null && e.getKey() == hovered;
+			boolean active = e.getKey() == held || held == null && (e.getKey() == hovered || e.getKey() == gripHover);
+			drawGrip(c, r, e.getKey() == resizing || e.getKey() == gripHover, active);
 			if (active) {
 				c.borderRoundRect(r[0] - 3, r[1] - 3, r[2] + 6, r[3] + 6, 9, 1.5f, Colors.accent(0.95f));
-				float hx = r[0] + r[2] + 3 - HANDLE / 2, hy = r[1] + r[3] + 3 - HANDLE / 2;
-				c.fillRoundRect(hx, hy, HANDLE, HANDLE, 2.5f, Colors.ACCENT);
-				c.borderRoundRect(hx, hy, HANDLE, HANDLE, 2.5f, 1, Colors.WHITE);
 				String name = e.getKey().name + "  " + Math.round(e.getKey().scale * 100) + "%";
 				float tw = text.width(name, TAG) + 14;
 				float ty = r[1] - 3 - 22 < 0 ? r[1] + r[3] + 7 : r[1] - 3 - 22;
@@ -135,7 +135,7 @@ public class HudEditorScreen extends Screen {
 		text.setGraphics(null);
 		boolean overButton = !toolbarFaded && (inside(resetBtn, mdx, mdy) || inside(doneBtn, mdx, mdy));
 		if (dragging != null || resizing != null) g.requestCursor(CursorTypes.RESIZE_ALL);
-		else if (handleAt(mdx, mdy) != null) g.requestCursor(CursorTypes.CROSSHAIR);
+		else if (gripHover != null) g.requestCursor(CursorTypes.POINTING_HAND);
 		else if (hovered != null) g.requestCursor(CursorTypes.RESIZE_ALL);
 		else if (overButton) g.requestCursor(CursorTypes.POINTING_HAND);
 	}
@@ -150,12 +150,35 @@ public class HudEditorScreen extends Screen {
 		return found;
 	}
 
+	/**
+	 * The resize grip: a bright bracket traced along the bottom-right corner of the overlay's frame, so it
+	 * reads as part of the overlay without covering anything in it.
+	 */
+	private static void drawGrip(Canvas c, float[] r, boolean hot, boolean active) {
+		float x1 = r[0] + r[2] + 3, y1 = r[1] + r[3] + 3, rad = 9, arm = 7;
+		int n = 8;
+		float[] px = new float[n + 3], py = new float[n + 3];
+		px[0] = x1 - rad - arm;
+		py[0] = y1;
+		for (int k = 0; k <= n; k++) {
+			double a = Math.PI / 2 * (1 - k / (double) n);
+			px[k + 1] = (float) (x1 - rad + rad * Math.cos(a));
+			py[k + 1] = (float) (y1 - rad + rad * Math.sin(a));
+		}
+		px[n + 2] = x1;
+		py[n + 2] = y1 - rad - arm;
+		int col = hot ? Colors.ACCENT : Colors.white(active ? 0.95f : 0.75f);
+		c.stroke(px, py, n + 3, false, hot ? 3 : 2.2f, col);
+	}
+
 	/** The overlay whose resize handle is under the mouse, or null. */
 	private @Nullable Overlay handleAt(float mdx, float mdy) {
-		for (Map.Entry<Overlay, float[]> e : rects.entrySet()) {
-			float[] r = e.getValue();
-			float hx = r[0] + r[2] + 3, hy = r[1] + r[3] + 3;
-			if (Math.abs(mdx - hx) <= HANDLE && Math.abs(mdy - hy) <= HANDLE) return e.getKey();
+		// topmost first, with a little room around the grip so it is easy to catch
+		for (int i = Hud.ALL.size() - 1; i >= 0; i--) {
+			float[] r = rects.get(Hud.ALL.get(i));
+			if (r == null) continue;
+			float x1 = r[0] + r[2] + 3, y1 = r[1] + r[3] + 3;
+			if (mdx >= x1 - GRIP && mdx <= x1 + 6 && mdy >= y1 - GRIP && mdy <= y1 + 6) return Hud.ALL.get(i);
 		}
 		return null;
 	}
@@ -173,7 +196,7 @@ public class HudEditorScreen extends Screen {
 
 	private void drawToolbar(Canvas c, TextRenderer text, float sw, float mdx, float mdy, boolean anyEnabled) {
 		String title = "Modify HUD";
-		String hint = anyEnabled ? "Drag to move · Scroll or drag the corner to resize · Right-click to hide" : "No overlays enabled. Turn some on in Overlays.";
+		String hint = anyEnabled ? "Drag to move · Scroll, or drag the corner grip, to resize · Right-click to hide" : "No overlays enabled. Turn some on in Overlays.";
 		float resetW = 24 + text.width("Reset", BUTTON), doneW = 24 + text.width("Done", BUTTON);
 		float w = 14 + 16 + 10 + text.width(title, TITLE) + 14 + text.width(hint, HINT) + 18 + resetW + 6 + doneW + 7;
 		float h = 44, x = sw / 2 - w / 2, y = 18;

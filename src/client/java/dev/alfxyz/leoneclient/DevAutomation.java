@@ -372,8 +372,18 @@ public final class DevAutomation {
 		at(100, "enter", mc -> key(mc, GLFW.GLFW_KEY_ENTER));
 		at(10, "park", mc -> move(mc, screen(mc).designToGui(1500, 60)));
 		shot(2500, "32-players-profile");
+		at(100, "players: second game mode", mc -> click(mc, screen(mc).debugPanel(150, 38 + 18 + 38 + 18 + 112 + 18 + 15), 0));
+		shot(900, "32b-players-mode");
 		at(100, "dock overlays", mc -> click(mc, screen(mc).debugDock(5), 0));
 		shot(900, "33-overlays");
+		at(100, "fps settings", mc -> screen(mc).debugOverlaySettings("fps"));
+		at(10, "park", mc -> move(mc, screen(mc).designToGui(1500, 60)));
+		shot(900, "33b-settings-fps");
+		at(100, "back", mc -> click(mc, screen(mc).debugBackButton(), 0));
+		at(300, "staff status settings", mc -> screen(mc).debugOverlaySettings("staff_status"));
+		at(10, "park", mc -> move(mc, screen(mc).designToGui(1500, 60)));
+		shot(900, "33c-settings-staff-status");
+		at(100, "back", mc -> click(mc, screen(mc).debugBackButton(), 0));
 		at(100, "modify hud", mc -> click(mc, screen(mc).debugDock(6), 0));
 		at(1200, "resize watermark by scrolling", mc -> {
 			if (mc.gui.screen() instanceof HudEditorScreen e) {
@@ -392,6 +402,15 @@ public final class DevAutomation {
 
 		// ---- features with everything on
 		at(200, "on: chat lines", DevAutomation::chatLines);
+		at(100, "on: repeat counted", mc -> {
+			var messages = ((dev.alfxyz.leoneclient.mixin.ChatHistoryAccessor) mc.gui.hud.getChat()).leone$allMessages();
+			List<String> reach = new ArrayList<>();
+			for (var m : messages) {
+				Component c = m.content() instanceof dev.alfxyz.leoneclient.staffchat.StaffPlaceholder p ? p.real() : m.content();
+				if (c.getString().contains("Cheater flagged Reach A")) reach.add(c.getString());
+			}
+			check("a repeated alert becomes one line with a count " + reach, reach.size() == 1 && reach.getFirst().endsWith("[x2]"));
+		});
 		at(200, "on: hud and commands", DevAutomation::hudAndCommands);
 		for (int i = 0; i < 10; i++) {
 			float secs = 14.0f - i * 0.25f;

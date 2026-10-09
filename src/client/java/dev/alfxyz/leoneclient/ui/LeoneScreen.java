@@ -953,6 +953,16 @@ public class LeoneScreen extends Screen {
 		return designToGui(x0 + (i % 3) * (tw + 8) + tw / 2, y0 + (i / 3) * (56 + 8) + 28);
 	}
 
+	/** Opens the settings of an overlay (its module's, for one that belongs to a module), as right-clicking its tile does. */
+	public void debugOverlaySettings(String id) {
+		openSettings(OverlaySettings.of(dev.alfxyz.leoneclient.hud.Hud.byId(id)));
+	}
+
+	/** Opens a module's settings. */
+	public void debugSettings(Module m) {
+		openSettings(m);
+	}
+
 	/** Types text into the focused field (or starts a search), as if from the keyboard. */
 	public void debugType(String s) {
 		for (int i = 0; i < s.length(); i++) charTyped(new CharacterEvent(s.charAt(i)));

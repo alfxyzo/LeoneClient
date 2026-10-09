@@ -146,6 +146,7 @@ public final class Hud {
 			if (fx != null && p[0] < fx[2] && p[0] + w > fx[0] && p[1] < fx[3]) p[1] = Math.min(900 - h, fx[3] + 6);
 		}
 		ctx.alignEnd = o.ax == Overlay.END;
+		ctx.current = o;
 		if (w > 0 && h > 0) {
 			ctx.cv.push();
 			ctx.cv.translate(p[0], p[1]);

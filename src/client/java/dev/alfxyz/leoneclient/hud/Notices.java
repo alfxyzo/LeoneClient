@@ -7,8 +7,9 @@ import org.jspecify.annotations.Nullable;
 
 /** Short pop-up notifications, drawn by the Notifications overlay. */
 public final class Notices {
-	public static final double SHOW_MS = 4500;
-	private static final int MAX = 5;
+	/** How long a pop-up shows, and how many show at once; set from the Notifications overlay's settings. */
+	public static volatile double showMs = 4500;
+	public static volatile int max = 5;
 
 	/** {@code head} shows a player's face instead of {@code icon}. */
 	public record Notice(String title, String detail, int color, @Nullable String icon, @Nullable UUID head, double at) {
@@ -35,13 +36,14 @@ public final class Notices {
 		// the same message again replaces the old one instead of stacking
 		list.removeIf(o -> o.title().equals(n.title()) && o.detail().equals(n.detail()));
 		list.add(n);
-		while (list.size() > MAX) list.removeFirst();
+		while (list.size() > Math.max(1, max)) list.removeFirst();
 	}
 
 	/** Notices still showing, oldest first. */
 	public static synchronized List<Notice> active() {
 		double now = now();
-		list.removeIf(n -> now - n.at() > SHOW_MS);
+		list.removeIf(n -> now - n.at() > showMs);
+		while (list.size() > Math.max(1, max)) list.removeFirst();
 		return new ArrayList<>(list);
 	}
 }

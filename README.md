@@ -45,9 +45,9 @@ The Staff category only appears when your [leonemc.net](https://leonemc.net) pro
 | Module | What it does |
 |---|---|
 | Staff Chat | Keeps staff chat (staff messages, reports, help requests, anticheat alerts, banned join attempts and punishments) in your chat on your screen, but leaves those lines blank in OBS, Medal, Discord and other screen capture, by drawing them in a window that Windows excludes from capture. It can show them normally while you are vanished or in mod mode, when its key switches between showing and hiding them. Windows only. If the separate Staff Chat Overlay mod is installed, remove it to use this module. |
-| Anticheat Alerts | Hides repeats of the same player and check for a while you choose (30 seconds by default), and lists the players flagged in the last few minutes on a HUD panel, with their checks and server. Can play a sound the first time a player is flagged. |
+| Anticheat Alerts | Folds repeats of the same player and check into one line that moves down with a count, such as `[x3]`, so you can see an alert is still coming in without it flooding chat (or hides repeats outright, if you prefer). Lists recently flagged players on a HUD panel with their checks and server, and can play a sound the first time a player is flagged. |
 | Reports | Pops up player reports and help requests as notifications, and optionally VPN warnings and banned players trying to join. |
-| Mod Mode Status | A small HUD panel showing mod mode, vanish, whether staff chat is hidden, and how many punishments you have given this session. |
+| Mod Mode Status | A small HUD panel showing mod mode, vanish, whether staff chat is hidden, and how many punishments you have given this session. Each part can be turned off, and the panel can show only while you are in mod mode. |
 
 While staff chat is hidden from capture, the Anticheat panel and staff pop-ups are hidden too.
 
@@ -58,10 +58,10 @@ Mod mode is read from LeoneMC's own messages whenever you switch it. Joining a s
 - **Search** finds modules by name, category or description. Typing anywhere in the menu starts a search.
 - **Servers** switches LeoneMC server in one click and shows which of your friends were last seen on each.
 - **Friends** shows your friends list from your profile on [leonemc.net](https://leonemc.net): online friends first, the server each online friend is on, and when offline friends were last seen. Click a friend for their profile, message online friends, send friend requests, or view another player's friends with Change account.
-- **Players** looks up any LeoneMC player by name: rank, where they are or when they were last seen, join date, playtime, friends and their statistics for each game mode. `/leone profile <name>` opens it directly.
+- **Players** looks up any LeoneMC player by name: rank, where they are or when they were last seen, join date, playtime and friends, with their statistics in a tab for each game mode, each stat showing their place on its leaderboard. `/leone profile <name>` opens it directly.
 - **Configs** saves your setup as named profiles. The active profile saves automatically.
-- **Overlays** turns HUD elements on and off: Watermark, Module List, Action Bar, Combat Bar, Notifications, Server, Timers, Session Stats, FPS, Ping, Coordinates, Speed, CPS and Keystrokes, plus Staff Status and Anticheat Panel for staff.
-- **Modify HUD** lets you drag overlays anywhere and resize them (scroll over one, or drag its corner) from 50% to 250%. They snap to the edges and centre lines, and right-clicking one hides it.
+- **Overlays** turns HUD elements on and off: Watermark, Module List, Action Bar, Combat Bar, Notifications, Server, Timers, Session Stats, FPS, Ping, Coordinates, Speed, CPS and Keystrokes, plus Staff Status and Anticheat Panel for staff. Right-click one (or use its gear) for its settings: backgrounds, units, what it shows, colour by value, how many rows a panel lists, and a reset for its position and size.
+- **Modify HUD** lets you drag overlays anywhere and resize them from 50% to 250%, by scrolling over one or dragging the bracket on its bottom-right corner. They snap to the edges and centre lines, and right-clicking one hides it.
 
 <p align="center"><img src="docs/servers.png" alt="The Servers page" /></p>
 <p align="center"><img src="docs/hud.png" alt="The HUD editor" /></p>

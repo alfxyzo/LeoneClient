@@ -23,6 +23,7 @@ import org.jspecify.annotations.Nullable;
 public final class Ui {
 	public static final Style LABEL = new Style(14, Weight.SEMIBOLD, 0.01f);
 	public static final Style H2 = new Style(22, Weight.SEMIBOLD, -0.01f);
+	public static final Style STAT = new Style(18, Weight.SEMIBOLD, -0.01f);
 	public static final Style HINT = Style.of(12, Weight.REGULAR);
 	public static final Style TILE = Style.of(13.5f, Weight.REGULAR);
 	public static final Style DOCK = Style.of(13, Weight.REGULAR);

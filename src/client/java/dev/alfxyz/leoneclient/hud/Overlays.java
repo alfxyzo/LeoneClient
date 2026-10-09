@@ -10,8 +10,10 @@ import dev.alfxyz.leoneclient.features.ModModeStatus;
 import dev.alfxyz.leoneclient.features.SessionStats;
 import dev.alfxyz.leoneclient.features.Timers;
 import dev.alfxyz.leoneclient.staffchat.StaffChat;
+import dev.alfxyz.leoneclient.staffchat.StaffState;
 import dev.alfxyz.leoneclient.module.Module;
 import dev.alfxyz.leoneclient.module.Modules;
+import dev.alfxyz.leoneclient.module.Setting;
 import dev.alfxyz.leoneclient.render.Gfx;
 import dev.alfxyz.leoneclient.render.Heads;
 import dev.alfxyz.leoneclient.render.Icons;
@@ -27,6 +29,7 @@ import java.util.Locale;
 import java.util.Map;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.world.level.Level;
 import net.minecraft.client.multiplayer.PlayerInfo;
 import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
@@ -34,7 +37,14 @@ import org.jspecify.annotations.Nullable;
 
 /** The built-in overlays. */
 final class Overlays {
+	/** Value colours for overlays that colour their number by how good it is. */
+	static final int GOOD = 0xFF4ADE80, FAIR = 0xFFFBBF24, BAD = 0xFFF87171;
+
 	private Overlays() {
+	}
+
+	private static Setting.Toggle backgroundSetting(Overlay o) {
+		return o.add(new Setting.Toggle("background", "Background", "LOOK", true), "Draws the glass backdrop behind it.");
 	}
 
 	static List<Overlay> create() {
@@ -49,13 +59,33 @@ final class Overlays {
 		private static final Style NAME = Style.of(14, Weight.SEMIBOLD);
 		private static final Style SUB = Style.of(14, Weight.REGULAR);
 
+		private final Setting.Choice show = add(new Setting.Choice("show", "Show", "LOOK", List.of("Logo and name", "Logo", "Name"), "Logo and name"),
+			"What the watermark shows.");
+		private final Setting.Toggle bg = add(new Setting.Toggle("background", "Background", "LOOK", true),
+			"Draws the glass backdrop behind it.");
+
 		Watermark() {
 			super("watermark", "Watermark", "Leone logo and name", true, START, START, 8, 8);
 		}
 
 		@Override
+		public boolean background() {
+			return bg.get();
+		}
+
+		private boolean logo() {
+			return !show.is("Name");
+		}
+
+		private boolean name() {
+			return !show.is("Logo");
+		}
+
+		@Override
 		public float width(Context c) {
-			return 8 + 18 + 8 + c.text.width("Leone", NAME) + 4 + c.text.width("Client", SUB) + 12;
+			float w = logo() ? 8 + 18 : 4;
+			if (name()) w += 8 + c.text.width("Leone", NAME) + 4 + c.text.width("Client", SUB) + 4;
+			return w + 8;
 		}
 
 		@Override
@@ -66,8 +96,9 @@ final class Overlays {
 		@Override
 		public void draw(Context c, float x, float y, float w, float h) {
 			c.pill(x, y, w, h);
-			Gfx.logo().draw(c.cv, x + 8, y + (h - 18) / 2, 18, Colors.WHITE);
-			float tx = x + 8 + 18 + 8, base = c.text.baselineFor(NAME, y + h / 2);
+			if (logo()) Gfx.logo().draw(c.cv, x + 8, y + (h - 18) / 2, 18, Colors.WHITE);
+			if (!name()) return;
+			float tx = x + (logo() ? 8 + 18 : 4) + 8, base = c.text.baselineFor(NAME, y + h / 2);
 			c.text.draw(c.cv, "Leone", tx, base, NAME, Colors.TEXT);
 			c.text.draw(c.cv, "Client", tx + c.text.width("Leone", NAME) + 4, base, SUB, Colors.TEXT_HINT);
 		}
@@ -78,6 +109,12 @@ final class Overlays {
 	static final class ModuleList extends Overlay {
 		private static final float ROW = 20;
 		private final Map<Module, Anim> shown = new HashMap<>();
+		private final Setting.Choice order = add(new Setting.Choice("order", "Order", "LOOK", List.of("Longest first", "A to Z"), "Longest first"),
+			"How the modules are sorted.");
+		private final Setting.Toggle bg = add(new Setting.Toggle("background", "Background", "LOOK", true),
+			"Draws a glass strip behind each name.");
+		private final Setting.Toggle bar = add(new Setting.Toggle("bar", "Accent bar", "LOOK", true),
+			"Draws a thin bar in the theme colour beside each name.");
 
 		ModuleList() {
 			super("module_list", "Module List", "Modules that are on, longest first", false, END, START, 8, 8);
@@ -91,10 +128,14 @@ final class Overlays {
 				a.set(on ? 1 : 0, c.now, 220, Ease.SNAP);
 				if (a.get(c.now) > 0.001f) list.add(m);
 			}
-			list.sort((a, b) -> {
-				int d = Float.compare(c.text.width(b.name, VALUE), c.text.width(a.name, VALUE));
-				return d != 0 ? d : a.name.compareTo(b.name);
-			});
+			if (order.is("A to Z")) {
+				list.sort((a, b) -> a.name.compareToIgnoreCase(b.name));
+			} else {
+				list.sort((a, b) -> {
+					int d = Float.compare(c.text.width(b.name, VALUE), c.text.width(a.name, VALUE));
+					return d != 0 ? d : a.name.compareTo(b.name);
+				});
+			}
 			return list;
 		}
 
@@ -130,9 +171,11 @@ final class Overlays {
 				float rx = c.alignEnd ? x + w - rw + slide : x - slide;
 				c.cv.push();
 				c.cv.mulAlpha(t);
-				c.cv.fillRect(rx, cy, rx + rw, cy + ROW, Colors.glass(0.6f));
-				float bar = c.alignEnd ? rx + rw - 2 : rx;
-				c.cv.fillRect(bar, cy, bar + 2, cy + ROW, Colors.ACCENT);
+				if (bg.get()) c.cv.fillRect(rx, cy, rx + rw, cy + ROW, Colors.glass(0.6f));
+				if (bar.get()) {
+					float bx = c.alignEnd ? rx + rw - 2 : rx;
+					c.cv.fillRect(bx, cy, bx + 2, cy + ROW, Colors.ACCENT);
+				}
 				c.text.draw(c.cv, m.name, rx + (c.alignEnd ? 8 : 10), c.text.baselineFor(VALUE, cy + ROW / 2), VALUE, Colors.TEXT);
 				c.cv.pop();
 				cy += ROW * t;
@@ -143,8 +186,20 @@ final class Overlays {
 	// ------------------------------------------------------------ simple pills
 
 	static final class Fps extends Overlay {
+		private final Setting.Toggle colour = add(new Setting.Toggle("colour", "Colour by value", "LOOK", false),
+			"Green at 60 and above, amber from 30, red below that.");
+		private final Setting.Toggle unit = add(new Setting.Toggle("unit", "Show the unit", "LOOK", true),
+			"Writes FPS after the number.");
+		private final Setting.Toggle bg = add(new Setting.Toggle("background", "Background", "LOOK", true),
+			"Draws the glass backdrop behind it.");
+
 		Fps() {
 			super("fps", "FPS", "Frames per second", false, START, START, 8, 46);
+		}
+
+		@Override
+		public boolean background() {
+			return bg.get();
 		}
 
 		private String value(Context c) {
@@ -153,7 +208,7 @@ final class Overlays {
 
 		@Override
 		public float width(Context c) {
-			return c.pairWidth(value(c), "FPS");
+			return c.pairWidth(value(c), unit.get() ? "FPS" : "");
 		}
 
 		@Override
@@ -163,24 +218,42 @@ final class Overlays {
 
 		@Override
 		public void draw(Context c, float x, float y, float w, float h) {
-			c.pair(x, y, w, h, value(c), "FPS");
+			int fps = c.mc.getFps();
+			int col = !colour.get() ? Colors.TEXT : fps >= 60 ? GOOD : fps >= 30 ? FAIR : BAD;
+			c.pair(x, y, w, h, value(c), unit.get() ? "FPS" : "", col);
 		}
 	}
 
 	static final class Ping extends Overlay {
+		private final Setting.Toggle colour = add(new Setting.Toggle("colour", "Colour by value", "LOOK", false),
+			"Green up to 80 ms, amber up to 150 ms, red above that.");
+		private final Setting.Toggle unit = add(new Setting.Toggle("unit", "Show the unit", "LOOK", true),
+			"Writes ms after the number.");
+		private final Setting.Toggle bg = add(new Setting.Toggle("background", "Background", "LOOK", true),
+			"Draws the glass backdrop behind it.");
+
 		Ping() {
 			super("ping", "Ping", "Latency to the server", false, START, START, 8, 78);
 		}
 
-		private String value(Context c) {
-			if (c.mc.player == null || c.mc.getConnection() == null) return "0";
+		@Override
+		public boolean background() {
+			return bg.get();
+		}
+
+		private int ms(Context c) {
+			if (c.mc.player == null || c.mc.getConnection() == null) return 0;
 			PlayerInfo info = c.mc.getConnection().getPlayerInfo(c.mc.player.getUUID());
-			return Integer.toString(info == null ? 0 : info.getLatency());
+			return info == null ? 0 : info.getLatency();
+		}
+
+		private String value(Context c) {
+			return Integer.toString(ms(c));
 		}
 
 		@Override
 		public float width(Context c) {
-			return c.pairWidth(value(c), "ms");
+			return c.pairWidth(value(c), unit.get() ? "ms" : "");
 		}
 
 		@Override
@@ -190,35 +263,67 @@ final class Overlays {
 
 		@Override
 		public void draw(Context c, float x, float y, float w, float h) {
-			c.pair(x, y, w, h, value(c), "ms");
+			int ms = ms(c);
+			int col = !colour.get() || ms == 0 ? Colors.TEXT : ms <= 80 ? GOOD : ms <= 150 ? FAIR : BAD;
+			c.pair(x, y, w, h, value(c), unit.get() ? "ms" : "", col);
 		}
 	}
 
 	static final class Coordinates extends Overlay {
+		private final Setting.Toggle facing = add(new Setting.Toggle("facing", "Facing", "SHOW", true),
+			"Adds the direction you are looking: N, E, S or W.");
+		private final Setting.Toggle other = add(new Setting.Toggle("other_dimension", "Other dimension", "SHOW", false),
+			"Adds where you would be in the Nether while in the Overworld, and the other way round.");
+		private final Setting.Toggle bg = backgroundSetting(this);
+
 		Coordinates() {
 			super("coordinates", "Coordinates", "Position and facing", false, START, START, 8, 110);
 		}
 
-		private String[] parts(Context c) {
-			if (c.mc.player == null) return new String[] {"0", "0", "0", "N"};
-			Direction d = c.mc.player.getDirection();
-			String face = switch (d) {
-				case NORTH -> "N";
-				case SOUTH -> "S";
-				case EAST -> "E";
-				case WEST -> "W";
-				default -> d.getName().toUpperCase(Locale.ROOT);
-			};
-			return new String[] {Integer.toString(c.mc.player.getBlockX()), Integer.toString(c.mc.player.getBlockY()), Integer.toString(c.mc.player.getBlockZ()), face};
+		@Override
+		public boolean background() {
+			return bg.get();
+		}
+
+		/** Label and value pairs, then the facing and the other dimension's label (empty when not shown). */
+		private List<String[]> parts(Context c) {
+			List<String[]> out = new ArrayList<>();
+			if (c.mc.player == null || c.mc.level == null) {
+				out.add(new String[] {"X", "0"});
+				out.add(new String[] {"Y", "0"});
+				out.add(new String[] {"Z", "0"});
+				return out;
+			}
+			var pl = c.mc.player;
+			out.add(new String[] {"X", Integer.toString(pl.getBlockX())});
+			out.add(new String[] {"Y", Integer.toString(pl.getBlockY())});
+			out.add(new String[] {"Z", Integer.toString(pl.getBlockZ())});
+			if (facing.get()) {
+				Direction d = pl.getDirection();
+				out.add(new String[] {"", switch (d) {
+					case NORTH -> "N";
+					case SOUTH -> "S";
+					case EAST -> "E";
+					case WEST -> "W";
+					default -> d.getName().toUpperCase(Locale.ROOT);
+				}});
+			}
+			if (other.get()) {
+				var dim = c.mc.level.dimension();
+				if (dim == Level.OVERWORLD) {
+					out.add(new String[] {"Nether", (int) Math.floor(pl.getX() / 8) + " " + (int) Math.floor(pl.getZ() / 8)});
+				} else if (dim == Level.NETHER) {
+					out.add(new String[] {"Overworld", (int) Math.floor(pl.getX() * 8) + " " + (int) Math.floor(pl.getZ() * 8)});
+				}
+			}
+			return out;
 		}
 
 		@Override
 		public float width(Context c) {
-			String[] p = parts(c);
 			float w = 10;
-			String[] labels = {"X", "Y", "Z"};
-			for (int i = 0; i < 3; i++) w += c.text.width(labels[i], VALUE) + 5 + c.text.width(p[i], VALUE_STRONG) + 12;
-			return w + c.text.width(p[3], VALUE_STRONG) + 10;
+			for (String[] p : parts(c)) w += (p[0].isEmpty() ? 0 : c.text.width(p[0], VALUE) + 5) + c.text.width(p[1], VALUE_STRONG) + 12;
+			return w - 2;
 		}
 
 		@Override
@@ -229,24 +334,33 @@ final class Overlays {
 		@Override
 		public void draw(Context c, float x, float y, float w, float h) {
 			c.pill(x, y, w, h);
-			String[] p = parts(c);
-			String[] labels = {"X", "Y", "Z"};
 			float base = c.text.baselineFor(VALUE, y + h / 2), cx = x + 10;
-			for (int i = 0; i < 3; i++) {
-				c.text.draw(c.cv, labels[i], cx, base, VALUE, Colors.TEXT_HINT);
-				cx += c.text.width(labels[i], VALUE) + 5;
-				c.text.draw(c.cv, p[i], cx, base, VALUE_STRONG, Colors.TEXT);
-				cx += c.text.width(p[i], VALUE_STRONG) + 12;
+			for (String[] p : parts(c)) {
+				if (!p[0].isEmpty()) {
+					c.text.draw(c.cv, p[0], cx, base, VALUE, Colors.TEXT_HINT);
+					cx += c.text.width(p[0], VALUE) + 5;
+				}
+				c.text.draw(c.cv, p[1], cx, base, VALUE_STRONG, p[0].isEmpty() ? Colors.accent(1) : Colors.TEXT);
+				cx += c.text.width(p[1], VALUE_STRONG) + 12;
 			}
-			c.text.draw(c.cv, p[3], cx, base, VALUE_STRONG, Colors.accent(1));
 		}
 	}
 
 	static final class Speed extends Overlay {
 		private double speed;
+		private final Setting.Choice unit = add(new Setting.Choice("unit", "Unit", "SHOW", List.of("Blocks a second", "km/h"), "Blocks a second"),
+			"A block is a metre, so blocks a second are metres a second.");
+		private final Setting.Choice decimals = add(new Setting.Choice("decimals", "Decimals", "SHOW", List.of("0", "1", "2"), "2"),
+			"How many digits after the point.");
+		private final Setting.Toggle bg = backgroundSetting(this);
 
 		Speed() {
 			super("speed", "Speed", "Horizontal speed in blocks per second", false, START, START, 8, 142);
+		}
+
+		@Override
+		public boolean background() {
+			return bg.get();
 		}
 
 		@Override
@@ -256,13 +370,17 @@ final class Overlays {
 			speed += (Math.sqrt(dx * dx + dz * dz) * 20 - speed) * 0.5;
 		}
 
+		private boolean kmh() {
+			return unit.is("km/h");
+		}
+
 		private String value() {
-			return String.format(Locale.ROOT, "%.2f", speed);
+			return String.format(Locale.ROOT, "%." + decimals.get() + "f", kmh() ? speed * 3.6 : speed);
 		}
 
 		@Override
 		public float width(Context c) {
-			return c.pairWidth(value(), "m/s");
+			return c.pairWidth(value(), kmh() ? "km/h" : "m/s");
 		}
 
 		@Override
@@ -272,7 +390,7 @@ final class Overlays {
 
 		@Override
 		public void draw(Context c, float x, float y, float w, float h) {
-			c.pair(x, y, w, h, value(), "m/s");
+			c.pair(x, y, w, h, value(), kmh() ? "km/h" : "m/s");
 		}
 	}
 
@@ -304,12 +422,25 @@ final class Overlays {
 	static final ClickCounter CLICKS = new ClickCounter();
 
 	static final class Cps extends Overlay {
+		private final Setting.Choice show = add(new Setting.Choice("show", "Show", "SHOW", List.of("Both", "Left", "Right"), "Both"),
+			"Which mouse buttons to count.");
+		private final Setting.Toggle bg = backgroundSetting(this);
+
 		Cps() {
 			super("cps", "CPS", "Left and right clicks per second", false, START, START, 8, 174);
 		}
 
+		@Override
+		public boolean background() {
+			return bg.get();
+		}
+
 		private String value() {
-			return CLICKS.left() + " | " + CLICKS.right();
+			return switch (show.get()) {
+				case "Left" -> Integer.toString(CLICKS.left());
+				case "Right" -> Integer.toString(CLICKS.right());
+				default -> CLICKS.left() + " | " + CLICKS.right();
+			};
 		}
 
 		@Override
@@ -336,8 +467,16 @@ final class Overlays {
 		private static final Style SMALL = Style.of(10, Weight.REGULAR);
 		private final Map<String, Anim> press = new HashMap<>();
 
+		private final Setting.Toggle mouse = add(new Setting.Toggle("mouse", "Mouse buttons", "SHOW", true),
+			"Shows the attack and use buttons under the movement keys.");
+		private final Setting.Toggle cps = add(new Setting.Toggle("cps", "Clicks per second", "SHOW", true),
+			"Writes each mouse button's clicks per second under it.");
+		private final Setting.Toggle space = add(new Setting.Toggle("space", "Space bar", "SHOW", true),
+			"Shows the jump key as a bar at the bottom.");
+
 		Keystrokes() {
 			super("keystrokes", "Keystrokes", "Movement keys and mouse buttons", false, END, END, 8, 8);
+			cps.shownWhen(mouse::get);
 		}
 
 		@Override
@@ -347,7 +486,7 @@ final class Overlays {
 
 		@Override
 		public float height(Context c) {
-			return KEY * 3 + SPACE_H + GAP * 3;
+			return KEY * 2 + GAP + (mouse.get() ? KEY + GAP : 0) + (space.get() ? SPACE_H + GAP : 0);
 		}
 
 		private void key(Context c, String id, String label, String sub, float x, float y, float w, float h, KeyMapping km) {
@@ -374,9 +513,13 @@ final class Overlays {
 			key(c, "s", "S", "", x + KEY + GAP, r2, KEY, KEY, o.keyDown);
 			key(c, "d", "D", "", x + 2 * (KEY + GAP), r2, KEY, KEY, o.keyRight);
 			float r3 = r2 + KEY + GAP, half = (w - GAP) / 2;
-			key(c, "lmb", "LMB", CLICKS.left() + " CPS", x, r3, half, KEY, o.keyAttack);
-			key(c, "rmb", "RMB", CLICKS.right() + " CPS", x + half + GAP, r3, half, KEY, o.keyUse);
-			float r4 = r3 + KEY + GAP;
+			if (mouse.get()) {
+				key(c, "lmb", "LMB", cps.get() ? CLICKS.left() + " CPS" : "", x, r3, half, KEY, o.keyAttack);
+				key(c, "rmb", "RMB", cps.get() ? CLICKS.right() + " CPS" : "", x + half + GAP, r3, half, KEY, o.keyUse);
+				r3 += KEY + GAP;
+			}
+			if (!space.get()) return;
+			float r4 = r3;
 			Anim a = press.computeIfAbsent("space", k -> new Anim(0));
 			a.set(o.keyJump.isDown() ? 1 : 0, c.now, 80, Ease.EASE);
 			float t = a.get(c.now);
@@ -409,7 +552,7 @@ final class Overlays {
 
 		abstract int tint();
 
-		abstract boolean background();
+		public abstract boolean background();
 
 		abstract boolean shadow();
 
@@ -451,6 +594,11 @@ final class Overlays {
 	}
 
 	static final class ActionBarOverlay extends BarOverlay {
+		@Override
+		public Module owner() {
+			return Modules.ACTION_BAR;
+		}
+
 		ActionBarOverlay() {
 			super("action_bar", "Action Bar", "The server's action bar", 39);
 		}
@@ -486,7 +634,7 @@ final class Overlays {
 		}
 
 		@Override
-		boolean background() {
+		public boolean background() {
 			return Modules.ACTION_BAR.background.get();
 		}
 
@@ -502,6 +650,11 @@ final class Overlays {
 	}
 
 	static final class CombatBarOverlay extends BarOverlay {
+		@Override
+		public Module owner() {
+			return Modules.COMBAT_BAR;
+		}
+
 		CombatBarOverlay() {
 			super("combat_bar", "Combat Bar", "Your combat tag line", 55);
 		}
@@ -537,7 +690,7 @@ final class Overlays {
 		}
 
 		@Override
-		boolean background() {
+		public boolean background() {
 			return Modules.COMBAT_BAR.background.get();
 		}
 
@@ -555,8 +708,17 @@ final class Overlays {
 	// ------------------------------------------------------------ server
 
 	static final class ServerOverlay extends Overlay {
+		private final Setting.Toggle icon = add(new Setting.Toggle("icon", "Icon", "LOOK", true),
+			"Draws the server icon before the name.");
+		private final Setting.Toggle bg = backgroundSetting(this);
+
 		ServerOverlay() {
 			super("server", "Server", "The LeoneMC server you are on", false, START, START, 8, 206);
+		}
+
+		@Override
+		public boolean background() {
+			return bg.get();
 		}
 
 		private @Nullable String value(Context c) {
@@ -572,7 +734,7 @@ final class Overlays {
 		@Override
 		public float width(Context c) {
 			String v = value(c);
-			return v == null ? 0 : 10 + 14 + 7 + c.text.width(v, VALUE_STRONG) + 10;
+			return v == null ? 0 : 10 + (icon.get() ? 14 + 7 : 0) + c.text.width(v, VALUE_STRONG) + 10;
 		}
 
 		@Override
@@ -585,8 +747,8 @@ final class Overlays {
 			String v = value(c);
 			if (v == null) return;
 			c.pill(x, y, w, h);
-			Gfx.icons().draw(c.cv, Icons.SERVER, x + 10, y + (h - 14) / 2, 14, 1.8f, Colors.accent(1));
-			c.text.draw(c.cv, v, x + 10 + 14 + 7, c.text.baselineFor(VALUE, y + h / 2), VALUE_STRONG, Colors.TEXT);
+			if (icon.get()) Gfx.icons().draw(c.cv, Icons.SERVER, x + 10, y + (h - 14) / 2, 14, 1.8f, Colors.accent(1));
+			c.text.draw(c.cv, v, x + 10 + (icon.get() ? 14 + 7 : 0), c.text.baselineFor(VALUE, y + h / 2), VALUE_STRONG, Colors.TEXT);
 		}
 	}
 
@@ -597,8 +759,19 @@ final class Overlays {
 		private static final Style TITLE = Style.of(13, Weight.SEMIBOLD);
 		private static final Style DETAIL = Style.of(11.5f, Weight.REGULAR);
 
+		private final Setting.Slider duration = add(new Setting.Slider("duration", "Time on screen", "SHOW", 2, 10, 0.5f, 4.5f, "%.1f s"),
+			"How long each pop-up stays before it fades.");
+		private final Setting.Slider max = add(new Setting.Slider("max", "Shown at once", "SHOW", 1, 6, 1, 5, "%.0f"),
+			"The most pop-ups shown together; older ones make way for new ones.");
+
 		Notifications() {
 			super("notifications", "Notifications", "Pop-ups from Leone Client", true, END, CENTER, 8, 0);
+		}
+
+		@Override
+		public void tick(Minecraft mc) {
+			Notices.showMs = duration.get() * 1000;
+			Notices.max = Math.round(max.get());
 		}
 
 		private List<Notices.Notice> items(Context c) {
@@ -631,7 +804,7 @@ final class Overlays {
 			for (Notices.Notice n : items(c)) {
 				double age = c.editor ? 1000 : c.now - n.at();
 				float in = Ease.progress(age, 0, 0, 320, Ease.SNAP);
-				float out = 1 - Ease.progress(age, 0, Notices.SHOW_MS - 400, 400, Ease.EASE);
+				float out = 1 - Ease.progress(age, 0, Notices.showMs - 400, 400, Ease.EASE);
 				float slide = (1 - in) * 40 * (c.alignEnd ? 1 : -1);
 				c.cv.push();
 				c.cv.translate(slide, 0);
@@ -702,10 +875,13 @@ final class Overlays {
 	}
 
 	static final class AnticheatPanel extends Panel {
-		private static final int MAX = 6;
-
 		AnticheatPanel() {
 			super("anticheat_panel", "Anticheat Panel", "Players flagged recently", START, CENTER, 8, -60);
+		}
+
+		@Override
+		public Module owner() {
+			return Modules.ANTICHEAT_ALERTS;
 		}
 
 		@Override
@@ -739,7 +915,7 @@ final class Overlays {
 				s.server = "ElytraBox";
 				return List.of(s);
 			}
-			return l.subList(0, Math.min(MAX, l.size()));
+			return l.subList(0, Math.min(Math.round(Modules.ANTICHEAT_ALERTS.panelPlayers.get()), l.size()));
 		}
 
 		@Override
@@ -782,6 +958,11 @@ final class Overlays {
 		}
 
 		@Override
+		public Module owner() {
+			return Modules.TIMERS;
+		}
+
+		@Override
 		public boolean enabled() {
 			return Modules.TIMERS.enabled();
 		}
@@ -799,7 +980,7 @@ final class Overlays {
 		private List<Timers.Countdown> list(Context c) {
 			List<Timers.Countdown> l = Modules.TIMERS.list();
 			if (l.isEmpty() && c.editor) return List.of(SAMPLE);
-			return l.subList(0, Math.min(4, l.size()));
+			return l.subList(0, Math.min(Math.round(Modules.TIMERS.shownAtOnce.get()), l.size()));
 		}
 
 		private static final Timers.Countdown SAMPLE = new Timers.Countdown(Timers.Kind.EVENT, "Lava Rising", "EU · EU West · 2,500 gems", Long.MAX_VALUE / 2);
@@ -841,6 +1022,11 @@ final class Overlays {
 		}
 
 		@Override
+		public Module owner() {
+			return Modules.SESSION_STATS;
+		}
+
+		@Override
 		public boolean enabled() {
 			return Modules.SESSION_STATS.enabled();
 		}
@@ -852,11 +1038,23 @@ final class Overlays {
 
 		private String[][] parts() {
 			SessionStats s = Modules.SESSION_STATS;
-			return new String[][] {{String.valueOf(s.kills()), "K"}, {String.valueOf(s.deaths()), "D"}, {s.kdr(), "KDR"}, {String.valueOf(s.streak()), "streak"}};
+			List<String[]> out = new ArrayList<>();
+			if (s.show.has(SessionStats.KILLS)) out.add(new String[] {String.valueOf(s.kills()), "K"});
+			if (s.show.has(SessionStats.DEATHS)) out.add(new String[] {String.valueOf(s.deaths()), "D"});
+			if (s.show.has(SessionStats.KDR)) out.add(new String[] {s.kdr(), "KDR"});
+			if (s.show.has(SessionStats.STREAK)) out.add(new String[] {String.valueOf(s.streak()), "streak"});
+			if (s.show.has(SessionStats.BEST)) out.add(new String[] {String.valueOf(s.best()), "best"});
+			return out.toArray(new String[0][]);
+		}
+
+		@Override
+		public boolean shown() {
+			return parts().length > 0;
 		}
 
 		@Override
 		public float width(Context c) {
+			if (parts().length == 0) return c.editor ? 120 : 0;
 			float w = 10;
 			for (String[] p : parts()) w += c.text.width(p[0], VALUE_STRONG) + 4 + c.text.width(p[1], VALUE) + 12;
 			return w - 2;
@@ -886,6 +1084,16 @@ final class Overlays {
 		}
 
 		@Override
+		public Module owner() {
+			return Modules.MOD_MODE;
+		}
+
+		@Override
+		public boolean shown() {
+			return !Modules.MOD_MODE.onlyInModMode.get() || StaffState.inModMode();
+		}
+
+		@Override
 		public boolean available() {
 			return Modules.MOD_MODE.category.visible();
 		}
@@ -911,13 +1119,13 @@ final class Overlays {
 				case OFF -> new Part(Icons.SHIELD, "Not in mod mode", Colors.TEXT_HINT);
 				case UNKNOWN -> new Part(Icons.SHIELD, "Mod mode unknown", Colors.TEXT_HINT);
 			});
-			if (m.vanished()) out.add(new Part(Icons.EYE_OFF, "Vanished", 0xFFC084FC));
+			if (m.showVanish.get() && m.vanished()) out.add(new Part(Icons.EYE_OFF, "Vanished", 0xFFC084FC));
 			// only when Leone Client's own Staff Chat is the one hiding staff chat
-			if (Modules.STAFF_CHAT.active()) {
+			if (m.showStaffChat.get() && Modules.STAFF_CHAT.active()) {
 				boolean hidden = StaffChat.isHidden();
 				out.add(new Part(hidden ? Icons.VIDEO_OFF : Icons.EYE, hidden ? "Staff chat hidden" : "Staff chat visible", hidden ? 0xFF4ADE80 : 0xFFFBBF24));
 			}
-			if (m.punishments() > 0) out.add(new Part(Icons.FLAG, m.punishments() + (m.punishments() == 1 ? " punishment" : " punishments"), Colors.TEXT_DOCK));
+			if (m.showPunishments.get() && m.punishments() > 0) out.add(new Part(Icons.FLAG, m.punishments() + (m.punishments() == 1 ? " punishment" : " punishments"), Colors.TEXT_DOCK));
 			return out;
 		}
 

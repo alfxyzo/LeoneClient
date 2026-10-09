@@ -38,7 +38,7 @@ final class OverlaysPage extends Page {
 		int on = 0;
 		List<Overlay> list = overlays();
 		for (Overlay o : list) if (o.enabled()) on++;
-		String hint = on + " of " + list.size() + " on";
+		String hint = "Click to show or hide, right-click for settings   " + on + " of " + list.size() + " on";
 		float hw = ui.text.width(hint, Ui.HINT);
 		ui.text.draw(ui.cv, hint, x + W - bw - 14 - hw, ui.text.baselineFor(Ui.HINT, y + 19), Ui.HINT, Colors.TEXT_HINT);
 
@@ -57,6 +57,8 @@ final class OverlaysPage extends Page {
 		ColorAnim bg = ui.color(k + "#bg", Colors.white(0.035f));
 		ColorAnim border = ui.color(k + "#border", Colors.white(0.07f));
 		Anim knob = ui.anim(k + "#knob", on ? 1 : 0);
+		Anim gear = ui.anim(k + "#gear", 0);
+		gear.set(hov ? 1 : 0, ui.now, 150, Ease.EASE);
 		bg.set(on ? Colors.accent(hov ? 0.24f : 0.16f) : Colors.white(hov ? 0.07f : 0.035f), ui.now, 150, Ease.EASE);
 		border.set(on ? Colors.accent(0.55f) : Colors.white(hov ? 0.16f : 0.07f), ui.now, 150, Ease.EASE);
 		knob.set(on ? 1 : 0, ui.now, 150, Ease.EASE);
@@ -68,9 +70,19 @@ final class OverlaysPage extends Page {
 		ui.text.draw(ui.cv, o.name, x + 15, top + ui.text.ascent(Ui.TILE), Ui.TILE, on ? Colors.WHITE : hov ? Colors.TEXT : Colors.TEXT_SECONDARY);
 		ui.text.draw(ui.cv, ui.text.fit(o.description, Ui.SMALL, maxW), x + 15, top + lh + ui.text.ascent(Ui.SMALL), Ui.SMALL, Colors.TEXT_HINT);
 		ui.switchToggle(x + TILE_W - 14 - 26, y + TILE_H / 2 - 7, false, knob.get(ui.now));
+		Runnable settings = () -> screen.openSettings(OverlaySettings.of(o));
 		ui.hit(x, y, TILE_W, TILE_H, () -> {
 			o.setEnabled(!o.enabled());
 			LeoneConfig.save();
-		}, null);
+		}, settings);
+		float g = gear.get(ui.now);
+		if (g > 0.01f) {
+			// a gear beside the switch, for those who do not think to right-click
+			float gx = x + TILE_W - 14 - 26 - 8 - 22, gy = y + TILE_H / 2 - 11;
+			ui.cv.push();
+			ui.cv.mulAlpha(g);
+			ui.iconButton(k + "#settings", gx, gy, 22, Icons.GEAR, 13, Colors.TEXT_MUTED, Colors.WHITE, settings);
+			ui.cv.pop();
+		}
 	}
 }

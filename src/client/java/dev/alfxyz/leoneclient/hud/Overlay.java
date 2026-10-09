@@ -1,15 +1,20 @@
 package dev.alfxyz.leoneclient.hud;
 
 import com.google.gson.JsonObject;
+import dev.alfxyz.leoneclient.module.Module;
+import dev.alfxyz.leoneclient.module.Setting;
 import dev.alfxyz.leoneclient.render.Canvas;
-import dev.alfxyz.leoneclient.render.TextRenderer;
 import dev.alfxyz.leoneclient.render.TextRenderer.Style;
 import dev.alfxyz.leoneclient.render.TextRenderer.Weight;
+import dev.alfxyz.leoneclient.render.TextRenderer;
 import dev.alfxyz.leoneclient.ui.Colors;
+import java.util.ArrayList;
+import java.util.List;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;
 import org.joml.Matrix3x2f;
+import org.jspecify.annotations.Nullable;
 
 /**
  * A HUD overlay. Sizes and positions are in design px (the menu's 900-tall
@@ -32,6 +37,8 @@ public abstract class Overlay {
 	private final boolean defaultEnabled;
 
 	private boolean enabled;
+	/** This overlay's own settings; overlays that belong to a module keep theirs on the module. */
+	public final List<Setting> settings = new ArrayList<>();
 	public int ax, ay;
 	public float ox, oy;
 	/** Size multiplier set in the HUD editor. */
@@ -49,6 +56,22 @@ public abstract class Overlay {
 		this.defOx = ox;
 		this.defOy = oy;
 		resetPosition();
+	}
+
+	protected <T extends Setting> T add(T setting, String description) {
+		setting.description = description;
+		settings.add(setting);
+		return setting;
+	}
+
+	/** The module this overlay belongs to, whose settings it uses, or null for a standalone overlay. */
+	public @Nullable Module owner() {
+		return null;
+	}
+
+	/** Whether the shared glass pill is drawn behind this overlay. */
+	public boolean background() {
+		return true;
 	}
 
 	public void resetPosition() {
@@ -107,6 +130,8 @@ public abstract class Overlay {
 		public final boolean editor;
 		/** Whether the overlay being drawn is anchored to the right edge. */
 		public boolean alignEnd;
+		/** The overlay being drawn. */
+		public @Nullable Overlay current;
 
 		public Context(Canvas cv, TextRenderer text, Minecraft mc, GuiGraphicsExtractor g, double now, boolean editor) {
 			this.cv = cv;
@@ -122,8 +147,9 @@ public abstract class Overlay {
 			return 1 / Hud.scale();
 		}
 
-		/** The glass pill every simple overlay sits on. */
+		/** The glass pill every simple overlay sits on, unless the overlay has its background turned off. */
 		public void pill(float x, float y, float w, float h) {
+			if (current != null && !current.background()) return;
 			cv.fillRoundRect(x, y, w, h, 8, Colors.glass(0.62f));
 			cv.borderRoundRect(x, y, w, h, 8, 1, Colors.white(0.08f));
 		}
@@ -135,9 +161,14 @@ public abstract class Overlay {
 
 		/** Draws a value in white followed by a dimmer unit, inside a pill. */
 		public void pair(float x, float y, float w, float h, String value, String unit) {
+			pair(x, y, w, h, value, unit, Colors.TEXT);
+		}
+
+		/** The same, with the value in {@code valueColor}. */
+		public void pair(float x, float y, float w, float h, String value, String unit, int valueColor) {
 			pill(x, y, w, h);
 			float base = text.baselineFor(VALUE, y + h / 2);
-			text.draw(cv, value, x + 10, base, VALUE_STRONG, Colors.TEXT);
+			text.draw(cv, value, x + 10, base, VALUE_STRONG, valueColor);
 			if (!unit.isEmpty()) text.draw(cv, unit, x + 10 + text.width(value, VALUE_STRONG) + 5, base, VALUE, Colors.TEXT_HINT);
 		}
 
@@ -169,6 +200,11 @@ public abstract class Overlay {
 		o.addProperty("ox", ox);
 		o.addProperty("oy", oy);
 		o.addProperty("scale", scale);
+		if (!settings.isEmpty()) {
+			JsonObject set = new JsonObject();
+			for (Setting s : settings) set.add(s.id, s.save());
+			o.add("settings", set);
+		}
 		return o;
 	}
 
@@ -179,9 +215,25 @@ public abstract class Overlay {
 		if (o.has("ox")) ox = o.get("ox").getAsFloat();
 		if (o.has("oy")) oy = o.get("oy").getAsFloat();
 		if (o.has("scale")) setScale(o.get("scale").getAsFloat());
+		if (o.has("settings") && o.get("settings").isJsonObject()) {
+			JsonObject set = o.getAsJsonObject("settings");
+			for (Setting s : settings) {
+				if (!set.has(s.id)) continue;
+				try {
+					s.load(set.get(s.id));
+				} catch (RuntimeException ignored) {
+					// a bad value keeps the default
+				}
+			}
+		}
 	}
 
 	void resetEnabled() {
 		enabled = defaultEnabled;
+	}
+
+	/** Puts every setting back to its default. */
+	public void resetSettings() {
+		for (Setting s : settings) s.reset();
 	}
 }

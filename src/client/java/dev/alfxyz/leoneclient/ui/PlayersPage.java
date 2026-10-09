@@ -28,7 +28,8 @@ import org.jspecify.annotations.Nullable;
 
 /** Any LeoneMC player's profile from leonemc.net: rank, where they are, playtime and stats. */
 final class PlayersPage extends Page {
-	private static final float CARD_H = 112, STAT_ROW = 24, STAT_GAP = 10, LIST_H = 400;
+	private static final float CARD_H = 112, LIST_H = 400, TAB_H = 30, TILE_H = 64, TILE_GAP = 8;
+	private static final int COLS = 4;
 	private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH).withZone(ZoneId.systemDefault());
 	final TextInput query = new TextInput(17, c -> Character.isLetterOrDigit(c) || c == '_' || c == '.');
 	private List<Player> suggestions = List.of();
@@ -39,6 +40,8 @@ final class PlayersPage extends Page {
 	private @Nullable UUID shown;
 	private String shownName = "";
 	private final Anim scroll = new Anim(0);
+	/** Which game mode's stats are shown. */
+	private int mode;
 
 	PlayersPage(LeoneScreen screen) {
 		super(screen);
@@ -59,6 +62,7 @@ final class PlayersPage extends Page {
 	void show(UUID uuid, String name) {
 		shown = uuid;
 		shownName = name;
+		mode = 0;
 		scroll.snap(0);
 		Profiles.want(uuid, 60_000);
 	}
@@ -128,45 +132,36 @@ final class PlayersPage extends Page {
 
 	// ------------------------------------------------------------------ layout
 
-	private static int columns() {
-		return 3;
+	/** The stat grid of the chosen game mode: four tiles to a row. */
+	private static float gridHeight(StatCard c) {
+		int rows = (c.stats().size() + COLS - 1) / COLS;
+		return rows == 0 ? 0 : rows * TILE_H + (rows - 1) * TILE_GAP;
 	}
 
-	private static float statCardHeight(Ui ui, StatCard c) {
-		return 14 + ui.text.lineHeight(Ui.CAPS) + 8 + c.stats().size() * STAT_ROW + 10;
-	}
-
-	/** Column layout of the stat cards: x column and y offset of each card, and the total height. */
-	private static float[][] statLayout(Ui ui, List<StatCard> cards) {
-		float colW = (W - 16) / 3;
-		float[] col = new float[columns()];
-		float[][] out = new float[cards.size() + 1][];
-		for (int i = 0; i < cards.size(); i++) {
-			int c = 0;
-			for (int k = 1; k < col.length; k++) if (col[k] < col[c]) c = k;
-			out[i] = new float[] {c * (colW + 8), col[c], colW, statCardHeight(ui, cards.get(i))};
-			col[c] += out[i][3] + STAT_GAP;
-		}
-		float max = 0;
-		for (float v : col) max = Math.max(max, v);
-		out[cards.size()] = new float[] {0, Math.max(0, max - STAT_GAP)};
-		return out;
-	}
-
-	private float contentHeight(Ui ui) {
-		Profile p = shown == null ? null : Profiles.get(shown);
-		if (p == null) return 0;
+	private @Nullable StatCard chosen(Profile p) {
 		List<StatCard> cards = p.stats();
-		if (cards.isEmpty()) return 72;
-		return statLayout(ui, cards)[cards.size()][1];
+		if (cards.isEmpty()) return null;
+		return cards.get(Math.min(mode, cards.size() - 1));
+	}
+
+	/** Height of the grid's window; it scrolls when a game mode has more stats than fit. */
+	private float gridWindow(Profile p) {
+		StatCard c = chosen(p);
+		return c == null ? 0 : Math.min(LIST_H - TAB_H - 12, gridHeight(c));
 	}
 
 	private float maxScroll(Ui ui) {
-		return Math.max(0, contentHeight(ui) - LIST_H);
+		Profile p = shown == null ? null : Profiles.get(shown);
+		StatCard c = p == null ? null : chosen(p);
+		return c == null ? 0 : Math.max(0, gridHeight(c) - gridWindow(p));
 	}
 
+	/** Everything below the profile card: the game mode tabs and the grid, or the empty note. */
 	private float listHeight(Ui ui) {
-		return Math.min(LIST_H, contentHeight(ui));
+		Profile p = shown == null ? null : Profiles.get(shown);
+		if (p == null) return 0;
+		if (p.stats().isEmpty()) return 72;
+		return TAB_H + 12 + gridWindow(p);
 	}
 
 	private float suggestionsHeight() {
@@ -243,7 +238,7 @@ final class PlayersPage extends Page {
 			return;
 		}
 		float top = y + 20;
-		ui.text.draw(ui.cv, p.name(), tx, top + ui.text.ascent(Ui.H2), Ui.H2, 0xFF000000 | p.color());
+		ui.text.draw(ui.cv, p.name(), tx, top + ui.text.ascent(Ui.H2), Ui.H2, readable(p.color()));
 		float bx = tx + ui.text.width(p.name(), Ui.H2) + 10, by = top + ui.text.lineHeight(Ui.H2) / 2 + 1;
 		if (!p.rank().isEmpty()) bx += ui.badge(p.rank(), bx, by, p.rankColor(), true) + 6;
 		if (Friends.isFriend(p.uuid())) ui.badge("Friend", bx, by, Colors.ACCENT_RGB, false);
@@ -284,42 +279,68 @@ final class PlayersPage extends Page {
 			ui.centred("No statistics yet.", Ui.DESC, x, ly, W, 72, Colors.TEXT_HINT);
 			return;
 		}
-		float lh = listHeight(ui);
-		float off = Math.min(scroll.get(ui.now), maxScroll(ui));
-		float[][] layout = statLayout(ui, cards);
-		ui.cv.push();
-		ui.cv.clipRect(x - 2, ly - 1, x + W + 2, ly + lh + 1);
+		// one tab per game mode
+		float tx = x;
 		for (int i = 0; i < cards.size(); i++) {
-			float[] r = layout[i];
-			float cy = ly + r[1] - off;
-			if (cy + r[3] < ly - 1 || cy > ly + lh + 1) continue;
-			statCard(ui, cards.get(i), x + r[0], cy, r[2], r[3]);
+			String title = cards.get(i).title();
+			float tw = ui.text.width(title, Ui.BUTTON) + 26;
+			if (tx + tw > x + W) break;
+			boolean on = i == Math.min(mode, cards.size() - 1);
+			boolean hov = ui.hovered(tx, ly, tw, TAB_H);
+			ColorAnim bg = ui.color("pl-tab#" + i, on ? Colors.accent(0.22f) : Colors.white(0.04f));
+			bg.set(on ? Colors.accent(0.22f) : Colors.white(hov ? 0.09f : 0.04f), ui.now, 140, Ease.EASE);
+			ui.cv.fillRoundRect(tx, ly, tw, TAB_H, TAB_H / 2, bg.get(ui.now));
+			ui.cv.borderRoundRect(tx, ly, tw, TAB_H, TAB_H / 2, 1, on ? Colors.accent(0.6f) : Colors.white(0.08f));
+			ui.text.draw(ui.cv, title, tx + 13, ui.text.baselineFor(Ui.BUTTON, ly + TAB_H / 2), Ui.BUTTON, on ? Colors.WHITE : Colors.TEXT_SECONDARY);
+			int index = i;
+			ui.hit(tx, ly, tw, TAB_H, () -> {
+				mode = index;
+				scroll.snap(0);
+			}, null);
+			tx += tw + 6;
+		}
+
+		StatCard card = chosen(p);
+		float gy = ly + TAB_H + 12, gh = gridWindow(p);
+		float off = Math.min(scroll.get(ui.now), maxScroll(ui));
+		float tileW = (W - (COLS - 1) * TILE_GAP) / COLS;
+		ui.cv.push();
+		ui.cv.clipRect(x - 2, gy - 1, x + W + 2, gy + gh + 1);
+		List<Stat> stats = card.stats();
+		for (int i = 0; i < stats.size(); i++) {
+			float sx = x + (i % COLS) * (tileW + TILE_GAP), sy = gy + (i / COLS) * (TILE_H + TILE_GAP) - off;
+			if (sy + TILE_H < gy - 1 || sy > gy + gh + 1) continue;
+			statTile(ui, stats.get(i), sx, sy, tileW);
 		}
 		ui.cv.pop();
 		float max = maxScroll(ui);
 		if (max > 0) {
-			float frac = lh / (lh + max);
-			float th = Math.max(24, lh * frac), tt = ly + (lh - th) * (off / max);
+			float th = Math.max(24, gh * gh / (gh + max)), tt = gy + (gh - th) * (off / max);
 			ui.cv.fillRoundRect(x + W + 6, tt, 3, th, 1.5f, Colors.white(0.18f));
 		}
 	}
 
-	private static void statCard(Ui ui, StatCard c, float x, float y, float w, float h) {
-		ui.card(x, y, w, h);
-		float ix = x + 14, iw = w - 28;
-		float cy = y + 14;
-		ui.caps(c.title().toUpperCase(Locale.ROOT), ix, cy);
-		cy += ui.text.lineHeight(Ui.CAPS) + 8;
-		for (Stat s : c.stats()) {
-			float mid = cy + STAT_ROW / 2;
-			ui.text.draw(ui.cv, ui.text.fit(s.label(), Ui.SMALL, iw * 0.5f), ix, ui.text.baselineFor(Ui.SMALL, mid), Ui.SMALL, Colors.TEXT_MUTED);
-			float vw = ui.text.width(s.value(), Ui.BODY_STRONG);
-			ui.text.draw(ui.cv, s.value(), ix + iw - vw, ui.text.baselineFor(Ui.BODY_STRONG, mid), Ui.BODY_STRONG, 0xFF000000 | s.color());
-			if (!s.rank().isEmpty()) {
-				float rw = ui.text.width(s.rank(), Ui.SMALL);
-				ui.text.draw(ui.cv, s.rank(), ix + iw - vw - 8 - rw, ui.text.baselineFor(Ui.SMALL, mid), Ui.SMALL, Colors.TEXT_DIM);
-			}
-			cy += STAT_ROW;
+	/** A colour from the website, lifted towards white when it is too dark to read on the menu's dark cards. */
+	private static int readable(int rgb) {
+		int r = (rgb >> 16) & 255, g = (rgb >> 8) & 255, b = rgb & 255;
+		float luma = (0.2126f * r + 0.7152f * g + 0.0722f * b) / 255f;
+		int argb = 0xFF000000 | rgb;
+		return luma >= 0.45f ? argb : Colors.lerp(argb, Colors.WHITE, Math.min(0.6f, 0.45f - luma + 0.2f));
+	}
+
+	/** One stat: what it is, its value, and the player's place on that leaderboard. */
+	private static void statTile(Ui ui, Stat s, float x, float y, float w) {
+		ui.card(x, y, w, TILE_H);
+		float ix = x + 12, iw = w - 24;
+		float rw = s.rank().isEmpty() ? 0 : ui.text.width(s.rank(), Ui.SMALL) + 8;
+		float labelY = y + 11;
+		ui.text.draw(ui.cv, ui.text.fit(s.label(), Ui.SMALL, iw - rw), ix, labelY + ui.text.ascent(Ui.SMALL), Ui.SMALL, Colors.TEXT_MUTED);
+		if (rw > 0) {
+			ui.text.draw(ui.cv, s.rank(), ix + iw - rw + 8, labelY + ui.text.ascent(Ui.SMALL), Ui.SMALL, Colors.TEXT_DIM);
+			ui.tip(ix + iw - rw, labelY - 2, rw, 18, "Place on the leaderboard for " + s.label());
 		}
+		float valueY = y + TILE_H - 12 - ui.text.lineHeight(Ui.STAT);
+		ui.text.draw(ui.cv, ui.text.fit(s.value(), Ui.STAT, iw), ix, valueY + ui.text.ascent(Ui.STAT), Ui.STAT, readable(s.color()));
+		if (ui.text.width(s.label(), Ui.SMALL) > iw - rw) ui.tip(x, y, w, TILE_H, s.label() + ": " + s.value());
 	}
 }

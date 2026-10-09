@@ -43,6 +43,21 @@ public abstract class Module {
 		return true;
 	}
 
+	/** The small heading above the name on the settings page. */
+	public String breadcrumb() {
+		return category.displayName;
+	}
+
+	/** Whether the module can appear in the Module List overlay (and so offers that switch). */
+	public boolean inModuleList() {
+		return true;
+	}
+
+	/** Whether the module can be given a key. */
+	public boolean hasKeybind() {
+		return true;
+	}
+
 	/** True when the module only does anything while connected to LeoneMC. */
 	public boolean leoneOnly() {
 		return false;
