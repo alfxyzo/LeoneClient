@@ -14,6 +14,7 @@ import dev.alfxyz.leoneclient.staffchat.StaffState;
 import dev.alfxyz.leoneclient.web.Account;
 import dev.alfxyz.leoneclient.web.Friends;
 import dev.alfxyz.leoneclient.web.LeoneWeb;
+import it.unimi.dsi.fastutil.ints.IntArrayList;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommands;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
@@ -112,18 +113,30 @@ public class LeoneClient implements ClientModInitializer {
 			})))));
 	}
 
-	/** Module keybinds: each press switches the module on or off. */
+	/** Keys pressed while playing (no screen open) since the last tick, for the module keybinds. */
+	private static final IntArrayList pressed = new IntArrayList();
+
+	/** From the keyboard handler, for every key event: notes presses made while playing. */
+	public static void keyPressed(long window, int action, int key) {
+		Minecraft mc = Minecraft.getInstance();
+		if (action != GLFW.GLFW_PRESS || window != mc.getWindow().handle() || mc.gui.screen() != null || mc.player == null) return;
+		if (!pressed.contains(key)) pressed.add(key);
+	}
+
+	/**
+	 * Module keybinds: each press switches the module on or off (or does what the module does with
+	 * it). Presses are caught as they happen rather than by checking the key every tick, so a quick
+	 * tap is never missed.
+	 */
 	private static void pollBinds(Minecraft mc) {
-		boolean free = mc.gui.screen() == null && mc.player != null;
+		if (pressed.isEmpty()) return;
+		int[] keys = pressed.toIntArray();
+		pressed.clear();
+		if (mc.player == null || mc.gui.screen() != null) return;
 		for (Module m : Modules.all()) {
-			if (m.bind < 0 || !m.toggleable()) {
-				m.bindDown = false;
-				continue;
-			}
-			boolean down = free && InputConstants.isKeyDown(mc.getWindow(), m.bind);
+			if (m.bind < 0 || !m.toggleable() || !contains(keys, m.bind)) continue;
 			boolean before = m.enabled();
-			if (down && !m.bindDown) m.onBindPressed();
-			m.bindDown = down;
+			m.onBindPressed();
 			if (m.enabled() != before) {
 				LeoneConfig.save();
 				if (Modules.INTERFACE.bindNotices.get()) {
@@ -131,5 +144,10 @@ public class LeoneClient implements ClientModInitializer {
 				}
 			}
 		}
+	}
+
+	private static boolean contains(int[] keys, int key) {
+		for (int k : keys) if (k == key) return true;
+		return false;
 	}
 }

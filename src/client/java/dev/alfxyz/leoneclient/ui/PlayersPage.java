@@ -19,6 +19,8 @@ import java.text.NumberFormat;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -115,7 +117,10 @@ final class PlayersPage extends Page {
 		LeoneWeb.search(q).whenComplete((list, err) -> Minecraft.getInstance().execute(() -> {
 			searching = false;
 			if (err == null && q.equals(query.value().strip())) {
-				suggestions = list.subList(0, Math.min(6, list.size()));
+				// you first, so two players listed under one name (as can happen on leonemc.net) are told apart
+				List<Player> sorted = new ArrayList<>(list.subList(0, Math.min(6, list.size())));
+				sorted.sort(Comparator.comparing((Player sp) -> !isYou(sp.uuid())));
+				suggestions = sorted;
 				searchError = null;
 			}
 		}));
@@ -215,6 +220,10 @@ final class PlayersPage extends Page {
 		ui.entering(ui.stagger(2), () -> stats(ui, p, x, ly));
 	}
 
+	private static boolean isYou(UUID uuid) {
+		return uuid.equals(Minecraft.getInstance().getUser().getProfileId());
+	}
+
 	private void suggestion(Ui ui, Player p, float x, float y) {
 		boolean hov = ui.hovered(x, y, W, 36);
 		ColorAnim bg = ui.color("pl-sug#" + p.uuid(), Colors.white(0.035f));
@@ -222,7 +231,8 @@ final class PlayersPage extends Page {
 		ui.cv.fillRoundRect(x, y, W, 36, 10, bg.get(ui.now));
 		Heads.draw(ui.cv, ui.text, p.uuid(), p.name(), x + 8, y + 6, 24, 6);
 		ui.text.draw(ui.cv, p.name(), x + 8 + 24 + 10, ui.text.baselineFor(Ui.BODY, y + 18), Ui.BODY, Colors.TEXT);
-		if (Friends.isFriend(p.uuid())) ui.badge("Friend", x + W - 10 - ui.badgeWidth("Friend"), y + 18, Colors.ACCENT_RGB, true);
+		String badge = isYou(p.uuid()) ? "You" : Friends.isFriend(p.uuid()) ? "Friend" : null;
+		if (badge != null) ui.badge(badge, x + W - 10 - ui.badgeWidth(badge), y + 18, Colors.ACCENT_RGB, true);
 		ui.hit(x, y, W, 36, () -> pick(p), null);
 	}
 
@@ -241,7 +251,8 @@ final class PlayersPage extends Page {
 		ui.text.draw(ui.cv, p.name(), tx, top + ui.text.ascent(Ui.H2), Ui.H2, readable(p.color()));
 		float bx = tx + ui.text.width(p.name(), Ui.H2) + 10, by = top + ui.text.lineHeight(Ui.H2) / 2 + 1;
 		if (!p.rank().isEmpty()) bx += ui.badge(p.rank(), bx, by, p.rankColor(), true) + 6;
-		if (Friends.isFriend(p.uuid())) ui.badge("Friend", bx, by, Colors.ACCENT_RGB, false);
+		if (isYou(p.uuid())) ui.badge("You", bx, by, Colors.ACCENT_RGB, false);
+		else if (Friends.isFriend(p.uuid())) ui.badge("Friend", bx, by, Colors.ACCENT_RGB, false);
 		float ly = top + ui.text.lineHeight(Ui.H2) + 6;
 		String presence = p.online() ? p.server() != null ? "Online on " + p.server() : "Online" : p.lastSeen() > 0 ? "Last seen " + Time.ago(p.lastSeen()) : "Offline";
 		ui.cv.fillCircle(tx + 4, ly + ui.text.lineHeight(Ui.BODY) / 2, 4, p.online() ? 0xFF4ADE80 : 0xFF6B6B73);

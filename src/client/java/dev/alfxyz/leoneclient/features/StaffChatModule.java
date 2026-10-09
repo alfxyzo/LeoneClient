@@ -53,6 +53,12 @@ public final class StaffChatModule extends Module {
 	}
 
 	@Override
+	public String bindHint() {
+		return "While staff chat is showing because you are vanished or in mod mode, the key hides it again (and shows it). "
+			+ "Otherwise it switches Staff Chat on or off.";
+	}
+
+	@Override
 	protected void onEnable() {
 		if (StaffChat.protectedWindow()) StaffChat.noteHiding(true);
 	}

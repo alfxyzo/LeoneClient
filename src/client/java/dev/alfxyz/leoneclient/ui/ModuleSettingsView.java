@@ -1,12 +1,13 @@
 package dev.alfxyz.leoneclient.ui;
 
-import dev.alfxyz.leoneclient.hud.Overlay;
-import dev.alfxyz.leoneclient.LeoneConfig;
 import com.mojang.blaze3d.platform.InputConstants;
+import dev.alfxyz.leoneclient.LeoneConfig;
 import dev.alfxyz.leoneclient.LeoneMC;
 import dev.alfxyz.leoneclient.anim.Anim;
 import dev.alfxyz.leoneclient.anim.Ease;
+import dev.alfxyz.leoneclient.hud.Overlay;
 import dev.alfxyz.leoneclient.module.Module;
+import dev.alfxyz.leoneclient.module.Modules;
 import dev.alfxyz.leoneclient.module.Setting;
 import dev.alfxyz.leoneclient.render.Icons;
 import java.util.ArrayList;
@@ -14,6 +15,9 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import net.minecraft.client.KeyMapping;
+import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -237,8 +241,20 @@ final class ModuleSettingsView {
 
 	private void keybindRow(Ui ui, float x, float r1, float right, Module m) {
 		ui.text.draw(ui.cv, "Keybind", x + 15, ui.text.baselineFor(Ui.BODY, r1 + 24), Ui.BODY, Colors.TEXT);
-		ui.tip(x, r1 + 4, 80, 40, "A key that switches " + m.name + " on or off while you play. Click the button, then press the key. Escape cancels.");
+		ui.tip(x, r1 + 4, 80, 40, m.bindHint() + " Click the button, then press the key. Escape cancels.");
 		float segY = r1 + 10;
+		boolean capturingNow = screen.binding() == m;
+		List<String> clashes = capturingNow || m.bind < 0 ? List.of() : clashes(m);
+		if (!clashes.isEmpty()) {
+			// the key also does something else; both happen when it is pressed
+			float lx = x + 15 + ui.text.width("Keybind", Ui.BODY) + 10;
+			String warn = "Also " + clashes.get(0) + (clashes.size() > 1 ? " +" + (clashes.size() - 1) : "");
+			ui.icons.draw(ui.cv, Icons.ALERT, lx, r1 + 24 - 6.5f, 13, 1.8f, 0xFFFBBF24);
+			float maxW = right - 28 - 6 - 84 - 10 - (lx + 18);
+			ui.text.draw(ui.cv, ui.text.fit(warn, Ui.SMALL, maxW), lx + 18, ui.text.baselineFor(Ui.SMALL, r1 + 24), Ui.SMALL, 0xFFFBBF24);
+			ui.tip(lx, r1 + 4, 18 + Math.min(maxW, ui.text.width(warn, Ui.SMALL)), 40,
+				keyName(m.bind) + " is also " + String.join(", ", clashes) + ". Pressing it does both, so a free key is better.");
+		}
 		float bxRight = right;
 		if (m.bind >= 0) {
 			ui.iconButton(m.key() + "#unbind", right - 28, segY, 28, Icons.CLOSE, 13, Colors.TEXT_MUTED, 0xFFFF8A8A, () -> {
@@ -260,6 +276,19 @@ final class ModuleSettingsView {
 			m.bind = -1;
 			screen.setBinding(null);
 		});
+	}
+
+	/** What else the module's key does: Minecraft's and other mods' controls, and other Leone modules. */
+	private static List<String> clashes(Module m) {
+		List<String> out = new ArrayList<>();
+		InputConstants.Key key = InputConstants.Type.KEYSYM.getOrCreate(m.bind);
+		for (KeyMapping km : Minecraft.getInstance().options.keyMappings) {
+			if (km.matches(key)) out.add(Component.translatable(km.getName()).getString());
+		}
+		for (Module o : Modules.all()) {
+			if (o != m && o.bind == m.bind && o.hasKeybind()) out.add(o.name);
+		}
+		return out;
 	}
 
 	static String keyName(int key) {

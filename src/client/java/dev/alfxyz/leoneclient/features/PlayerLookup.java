@@ -21,13 +21,21 @@ public final class PlayerLookup extends Module {
 			"Press its key while looking at a player to open their LeoneMC profile: rank, where they are, playtime and stats.", false);
 	}
 
+	/** The key always looks someone up, switching the module on first if it was off. */
 	@Override
 	public void onBindPressed() {
-		if (!active()) {
-			toggle();
-			return;
-		}
+		if (!enabled()) toggle();
 		lookUp();
+	}
+
+	@Override
+	public String bindHint() {
+		return "Press it while looking at a player to open their LeoneMC profile.";
+	}
+
+	@Override
+	public boolean inModuleList() {
+		return false;
 	}
 
 	/** Opens the profile of the player under the crosshair, or says there is nobody there. */

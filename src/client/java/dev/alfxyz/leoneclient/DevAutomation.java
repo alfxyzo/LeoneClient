@@ -325,6 +325,38 @@ public final class DevAutomation {
 	}
 
 	/** Timers from the sidebar, envoys and the Target; Chat Cleaner's hiding and stacking. */
+	private static boolean tapWasOn;
+
+	/** A module key tapped faster than a tick still counts, once per tap. */
+	private static void keybindChecks() {
+		at(200, "keybind: quick tap", mc -> {
+			mc.gui.setScreen(null);
+			Modules.MENTIONS.bind = GLFW.GLFW_KEY_KP_9;
+			tapWasOn = Modules.MENTIONS.enabled();
+			tap(mc, GLFW.GLFW_KEY_KP_9);
+		});
+		at(150, "keybind: result", mc -> {
+			check("a quick tap of a module's key switches it", Modules.MENTIONS.enabled() != tapWasOn);
+			tap(mc, GLFW.GLFW_KEY_KP_9);
+		});
+		at(150, "keybind: back", mc -> {
+			check("a second tap switches it back", Modules.MENTIONS.enabled() == tapWasOn);
+			Modules.MENTIONS.bind = -1;
+		});
+	}
+
+	/** Presses and releases a key through Minecraft's own keyboard handler, both within one tick. */
+	private static void tap(Minecraft mc, int key) {
+		try {
+			var press = net.minecraft.client.KeyboardHandler.class.getDeclaredMethod("keyPress", long.class, int.class, net.minecraft.client.input.KeyEvent.class);
+			press.setAccessible(true);
+			press.invoke(mc.keyboardHandler, mc.getWindow().handle(), GLFW.GLFW_PRESS, new net.minecraft.client.input.KeyEvent(key, 0, 0));
+			press.invoke(mc.keyboardHandler, mc.getWindow().handle(), GLFW.GLFW_RELEASE, new net.minecraft.client.input.KeyEvent(key, 0, 0));
+		} catch (ReflectiveOperationException e) {
+			check("tapping a key through the keyboard handler", false);
+		}
+	}
+
 	private static void eventAndCleanerChecks() {
 		at(200, "events: sidebar countdown", mc -> {
 			command(mc, "scoreboard objectives add leone dummy \"Elytra Box\"");
@@ -548,6 +580,7 @@ public final class DevAutomation {
 		});
 		staffStateChecks();
 		eventAndCleanerChecks();
+		keybindChecks();
 
 		// a full atlas is wiped before the next frame, and drawing carries on (heads, icons and text come back)
 		at(200, "atlas: fill it", mc -> {

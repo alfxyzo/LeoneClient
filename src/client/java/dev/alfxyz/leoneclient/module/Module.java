@@ -19,8 +19,6 @@ public abstract class Module {
 	public boolean visible = true;
 	/** GLFW key code that toggles the module, or -1 when unbound. */
 	public int bind = -1;
-	/** Bind key state last tick, for edge detection. */
-	public boolean bindDown;
 
 	protected Module(String id, Category category, String name, String icon, String description, boolean enabled) {
 		this.id = id;
@@ -56,6 +54,11 @@ public abstract class Module {
 	/** Whether the module can be given a key. */
 	public boolean hasKeybind() {
 		return true;
+	}
+
+	/** What the module's key does, for the tooltip on its Keybind row. */
+	public String bindHint() {
+		return "A key that switches " + name + " on or off while you play.";
 	}
 
 	/** True when the module only does anything while connected to LeoneMC. */
