@@ -32,7 +32,8 @@ final class ModuleTile {
 		}
 	}
 
-	static void draw(Ui ui, LeoneScreen screen, Module m, float x, float y) {
+	static void draw(Ui ui, LeoneScreen screen, Module m, float x0, float y) {
+		float x = x0 + screen.shake(m);
 		String k = "tile#" + m.key();
 		boolean hov = ui.hovered(x, y, W, H);
 		boolean toggleable = m.toggleable();

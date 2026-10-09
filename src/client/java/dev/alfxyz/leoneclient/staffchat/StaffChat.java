@@ -15,17 +15,16 @@ import org.slf4j.LoggerFactory;
  * stay in the chat on your screen, but their text is drawn by a separate window that Windows leaves
  * out of screen capture, so recordings show those lines empty.
  *
- * Outside vanish and mod mode, the Staff Chat module decides. While vanished or in mod mode, staff chat
- * is shown so it can be recorded; the module's key can hide it again for that stretch only, and leaving
- * vanish or mod mode always returns to the state from before.
+ * Outside vanish and mod mode, the Staff Chat module decides. While vanished or in mod mode (as
+ * {@link StaffState} knows them), staff chat can be shown so it can be recorded; the module's key hides
+ * it again for that stretch only, and leaving vanish or mod mode always returns to hidden.
  *
  * Safety rule: staff chat is only hidden while the window exists and Windows has confirmed it is
  * excluded from capture. Otherwise it is drawn normally, exactly as if this feature were not there.
+ * When it is unclear whether you are in mod mode (after a silent join), staff chat stays hidden.
  */
 public final class StaffChat {
 	public static final Logger LOGGER = LoggerFactory.getLogger("LeoneClient/StaffChat");
-	/** After mod mode ends, vanish action bar messages still in flight are ignored for this long. */
-	private static final long IGNORE_VANISH_AFTER_LEAVING_MS = 2000;
 	private static final boolean WINDOWS = System.getProperty("os.name", "").toLowerCase(Locale.ROOT).startsWith("windows");
 
 	static final StaffRules rules = new StaffRules();
@@ -33,11 +32,6 @@ public final class StaffChat {
 
 	/** Set by the key while vanished or in mod mode; cleared when that ends. */
 	private static boolean hideWhileRevealed;
-	private static boolean staffMode;
-	/** True once the vanish text has been seen during the current mod mode. */
-	private static boolean vanishSeenInStaffMode;
-	private static long vanishSeenAt;
-	private static long ignoreVanishUntil;
 
 	// Values for the current frame.
 	private static boolean hidden;
@@ -77,14 +71,6 @@ public final class StaffChat {
 		return window.isProtected();
 	}
 
-	public static boolean inStaffMode() {
-		return staffMode;
-	}
-
-	public static boolean vanished() {
-		return vanishSeenAt != 0 && System.currentTimeMillis() - vanishSeenAt < rules.vanishGraceSeconds * 1000L;
-	}
-
 	/** Swaps a staff message for a placeholder before it enters the chat history. */
 	public static Component wrapIfStaff(Component message) {
 		if (message == null || message instanceof StaffPlaceholder) {
@@ -92,7 +78,6 @@ public final class StaffChat {
 		}
 		try {
 			String text = message.getString();
-			noticeStaffMode(text);
 			// staff lines are marked even while the module is off (they show normally then), so
 			// switching it on later also hides the staff chat already on screen
 			return available() && Category.STAFF.visible() && rules.isStaff(text) ? new StaffPlaceholder(message) : message;
@@ -102,33 +87,9 @@ public final class StaffChat {
 		}
 	}
 
-	/** Called for every action bar message. */
-	public static void onActionBar(Component message) {
-		if (message != null && System.currentTimeMillis() >= ignoreVanishUntil && rules.isVanishText(message.getString())) {
-			vanishSeenAt = System.currentTimeMillis();
-		}
-	}
-
-	/** Leaving a server ends mod mode and vanish, so neither can carry over to the next server. */
+	/** Leaving a server ends anything the key changed. */
 	public static void onDisconnect() {
-		staffMode = false;
-		vanishSeenInStaffMode = false;
-		vanishSeenAt = 0;
 		hideWhileRevealed = false;
-	}
-
-	private static void noticeStaffMode(String text) {
-		if (rules.isStaffModeOff(text)) {
-			// Leaving mod mode ends vanish too, at once, instead of waiting for the action bar to stop.
-			staffMode = false;
-			vanishSeenInStaffMode = false;
-			vanishSeenAt = 0;
-			ignoreVanishUntil = System.currentTimeMillis() + IGNORE_VANISH_AFTER_LEAVING_MS;
-		} else if (rules.isStaffModeOn(text)) {
-			staffMode = true;
-			vanishSeenInStaffMode = false;
-			ignoreVanishUntil = 0;
-		}
 	}
 
 	/** Called on the render thread at the start of every frame. */
@@ -136,16 +97,7 @@ public final class StaffChat {
 		boolean active = active();
 		Modules.STAFF_CHAT.applyTo(rules);
 		if (active && !window.attempted()) window.create(Minecraft.getInstance().getWindow().handle());
-		boolean vanishedNow = vanished();
-		if (staffMode && vanishedNow) {
-			vanishSeenInStaffMode = true;
-		} else if (staffMode && vanishSeenInStaffMode && !vanishedNow) {
-			// Mod mode vanished you and the vanish text has stopped, for example after a server switch
-			// that never sent the leave message. Treat mod mode as over rather than leave staff chat visible.
-			staffMode = false;
-			vanishSeenInStaffMode = false;
-		}
-		boolean nowRevealed = rules.revealWhileVanished && (staffMode || vanishedNow);
+		boolean nowRevealed = rules.revealWhileVanished && (StaffState.inModMode() || StaffState.vanished());
 		if (!nowRevealed) {
 			hideWhileRevealed = false;
 		}
@@ -154,7 +106,7 @@ public final class StaffChat {
 
 		if (!firstFrame && active && wasActive && nowRevealed != revealed) {
 			if (nowRevealed) {
-				status(note(staffMode ? "Mod mode: " : "Vanished: ", "staff chat visible in recordings", ChatFormatting.GOLD));
+				status(note(StaffState.inModMode() ? "Mod mode: " : "Vanished: ", "staff chat visible in recordings", ChatFormatting.GOLD));
 			} else {
 				status(note("Staff chat: ", "hidden from recordings", ChatFormatting.GREEN));
 			}
@@ -171,7 +123,7 @@ public final class StaffChat {
 		hideWhileRevealed = !hideWhileRevealed;
 		status(hideWhileRevealed
 			? note("Staff chat: ", "hidden from recordings", ChatFormatting.GREEN)
-			: note("Staff chat: ", staffMode ? "visible in recordings until you leave mod mode" : "visible in recordings while vanished", ChatFormatting.GOLD));
+			: note("Staff chat: ", StaffState.inModMode() ? "visible in recordings until you leave mod mode" : "visible in recordings while vanished", ChatFormatting.GOLD));
 		beginFrame();
 	}
 

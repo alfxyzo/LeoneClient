@@ -3,6 +3,8 @@ package dev.alfxyz.leoneclient.features;
 import dev.alfxyz.leoneclient.Chat;
 import dev.alfxyz.leoneclient.LeoneMC;
 import dev.alfxyz.leoneclient.module.Modules;
+import dev.alfxyz.leoneclient.staffchat.StaffState;
+import net.minecraft.client.multiplayer.chat.GuiMessageSource;
 import net.minecraft.network.chat.Component;
 import org.jspecify.annotations.Nullable;
 
@@ -12,9 +14,13 @@ public final class ChatHooks {
 	}
 
 	/** Returns the line to show (possibly the same object), or null to hide it. Client messages are left alone. */
-	public static @Nullable Component incoming(Component message) {
+	public static @Nullable Component incoming(Component message, GuiMessageSource source) {
 		String plain = Chat.plain(message);
-		LeoneMC.onChat(plain);
+		// only the server can switch your staff state or server, never something a player typed
+		if (source == GuiMessageSource.SYSTEM_SERVER) {
+			LeoneMC.onChat(plain);
+			StaffState.onServerMessage(plain);
+		}
 		// trackers first, so they see lines that a filter below hides
 		Modules.TIMERS.track(plain);
 		Modules.SESSION_STATS.track(plain);

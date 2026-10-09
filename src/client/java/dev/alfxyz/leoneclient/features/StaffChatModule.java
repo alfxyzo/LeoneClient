@@ -5,6 +5,7 @@ import dev.alfxyz.leoneclient.module.Module;
 import dev.alfxyz.leoneclient.module.Setting;
 import dev.alfxyz.leoneclient.render.Icons;
 import dev.alfxyz.leoneclient.staffchat.StaffChat;
+import dev.alfxyz.leoneclient.staffchat.StaffState;
 import dev.alfxyz.leoneclient.staffchat.StaffRules;
 import java.util.ArrayList;
 import java.util.List;
@@ -39,6 +40,12 @@ public final class StaffChatModule extends Module {
 		rules.extraStartsWith = extraList;
 	}
 
+	/** Only while it can actually work here: on Windows, and without the separate Staff Chat Overlay mod. */
+	@Override
+	public boolean active() {
+		return super.active() && StaffChat.available();
+	}
+
 	@Override
 	public void onBindPressed() {
 		if (active() && StaffChat.revealed()) StaffChat.toggleWhileRevealed();
@@ -58,15 +65,17 @@ public final class StaffChatModule extends Module {
 	@Override
 	public String unavailable() {
 		if (StaffChat.available()) return null;
-		return FabricLoader.getInstance().isModLoaded("staffchatoverlay") ? "Remove the separate Staff Chat Overlay mod to use this" : "Only works on Windows";
+		return FabricLoader.getInstance().isModLoaded("staffchatoverlay")
+			? "The separate Staff Chat Overlay mod is installed and does this instead. Remove it to use this module."
+			: "Only works on Windows";
 	}
 
 	@Override
 	public String status() {
 		if (!StaffChat.available()) return unavailable();
 		if (!active()) return null;
-		if (!StaffChat.protectedWindow()) return "Not protected yet, so shown normally";
-		if (StaffChat.revealed() && !StaffChat.isHidden()) return StaffChat.inStaffMode() ? "Visible while in mod mode" : "Visible while vanished";
-		return "Hidden from recordings";
+		if (!StaffChat.protectedWindow()) return "Windows has not confirmed the protection yet, so staff chat is shown normally";
+		if (!StaffChat.isHidden()) return StaffState.inModMode() ? "Visible while in mod mode" : "Visible while vanished";
+		return StaffChat.revealed() ? "Hidden again by your key until you leave" : "Hidden from recordings";
 	}
 }

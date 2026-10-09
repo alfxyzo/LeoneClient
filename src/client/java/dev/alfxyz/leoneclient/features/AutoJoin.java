@@ -31,7 +31,8 @@ public final class AutoJoin extends Module {
 		custom.shownWhen(() -> server.is(CUSTOM));
 		LeoneMC.onFreshJoin(() -> {
 			String target = target();
-			if (!active() || target == null) return;
+			// only on LeoneMC itself: elsewhere (even with All Servers on) /server means nothing
+			if (!active() || !LeoneMC.connected() || target == null) return;
 			pending = target;
 			dueAt = System.currentTimeMillis() + (long) (delay.get() * 1000);
 		});

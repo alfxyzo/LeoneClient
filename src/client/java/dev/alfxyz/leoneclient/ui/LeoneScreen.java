@@ -41,6 +41,9 @@ public class LeoneScreen extends Screen {
 	/** What the side panel shows. */
 	public enum Kind { CATEGORY, SEARCH, SERVERS, FRIENDS, PLAYERS, CONFIGS, OVERLAYS }
 
+	/** When each module last refused to switch on, for its card's shake. */
+	private final java.util.Map<String, Double> denied = new java.util.HashMap<>();
+
 	private static @Nullable LeoneScreen active;
 	private static Canvas sharedCanvas;
 
@@ -801,8 +804,31 @@ public class LeoneScreen extends Screen {
 		startClose();
 	}
 
+	/**
+	 * Switches a module on or off. One that cannot work here (its card says why) is not switched on:
+	 * its card shakes instead.
+	 */
 	void toggle(Module m) {
+		if (!m.enabled() && m.unavailable() != null) {
+			denied.put(m.key(), now());
+			if (Modules.INTERFACE.sounds.get()) {
+				Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.NOTE_BLOCK_BASS.value(), 0.7F, 0.5F));
+			}
+			return;
+		}
 		m.toggle();
+	}
+
+	/** Sideways offset, in design pixels, of a card whose module just refused to switch on. */
+	float shake(Module m) {
+		Double at = denied.get(m.key());
+		if (at == null) return 0;
+		double t = (now() - at) / 420.0;
+		if (t >= 1) {
+			denied.remove(m.key());
+			return 0;
+		}
+		return (float) (Math.sin(t * Math.PI * 6) * 6 * (1 - t));
 	}
 
 	/** Shows a player's profile on the Players page. */

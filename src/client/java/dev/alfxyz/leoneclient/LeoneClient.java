@@ -10,6 +10,7 @@ import dev.alfxyz.leoneclient.ui.Colors;
 import dev.alfxyz.leoneclient.ui.LeoneScreen;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import dev.alfxyz.leoneclient.staffchat.StaffChat;
+import dev.alfxyz.leoneclient.staffchat.StaffState;
 import dev.alfxyz.leoneclient.web.Account;
 import dev.alfxyz.leoneclient.web.Friends;
 import dev.alfxyz.leoneclient.web.LeoneWeb;
@@ -27,6 +28,7 @@ import org.lwjgl.glfw.GLFW;
 
 public class LeoneClient implements ClientModInitializer {
 	public static KeyMapping openKey;
+	private static boolean sccWarned;
 
 	@Override
 	public void onInitializeClient() {
@@ -44,9 +46,20 @@ public class LeoneClient implements ClientModInitializer {
 		LeoneMC.onFreshJoin(() -> {
 			Friends.refresh(false);
 			Account.refresh(false);
+			// both would hide the same staff chat, so only the separate mod's runs; say so once
+			if (!sccWarned && Account.staff() && FabricLoader.getInstance().isModLoaded("staffchatoverlay")) {
+				sccWarned = true;
+				Chat.info("The separate Staff Chat Overlay mod is installed, so Leone Client's own Staff Chat module stays off. "
+					+ "Remove staffchatoverlay from your mods folder to use the built-in one.");
+			}
 		});
 		ClientLifecycleEvents.CLIENT_STARTED.register(mc -> Account.refresh(false));
-		ClientPlayConnectionEvents.DISCONNECT.register((handler, mc) -> StaffChat.onDisconnect());
+		// every server, including each switch between LeoneMC's servers, starts with a clean staff state
+		ClientPlayConnectionEvents.JOIN.register((handler, sender, mc) -> StaffState.onJoin());
+		ClientPlayConnectionEvents.DISCONNECT.register((handler, mc) -> {
+			StaffState.onDisconnect();
+			StaffChat.onDisconnect();
+		});
 
 		KeyMapping.Category category = KeyMapping.Category.register(LeoneClientMod.id("main"));
 		openKey = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.leoneclient.open", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_RIGHT_SHIFT, category));
@@ -56,6 +69,7 @@ public class LeoneClient implements ClientModInitializer {
 				else LogUtils.getLogger().debug("Leone Client: menu key pressed over {}", mc.gui.screen());
 			}
 			pollBinds(mc);
+			StaffState.tick(mc);
 			for (Module m : Modules.all()) m.tick(mc);
 		});
 		ClientLifecycleEvents.CLIENT_STOPPING.register(mc -> {

@@ -156,8 +156,15 @@ final class ModuleSettingsView {
 			ui.tip(bx - ui.badgeWidth(waiting ? "LeoneMC only, waiting" : "LeoneMC") - 6, by - 9, ui.badgeWidth("LeoneMC only, waiting"), 18,
 				"Only does something on LeoneMC, or anywhere with Client > All Servers on.");
 		}
+		String blocked = m.unavailable();
 		String status = m.status();
-		if (status != null && (m.enabled() || !m.toggleable())) ui.badge(status, bx, by, 0xFFFFFF, false);
+		if (blocked != null) {
+			float bw = ui.badgeWidth("Unavailable here");
+			ui.badge("Unavailable here", bx, by, 0xF59E0B, true);
+			ui.tip(bx, by - 9, bw, 18, blocked);
+		} else if (status != null && (m.enabled() || !m.toggleable())) {
+			ui.badge(status, bx, by, 0xFFFFFF, false);
+		}
 		ty += ui.text.lineHeight(Ui.H2) + 6;
 		ui.paragraph(m.description, Ui.DESC, tx, ty, descWidth(), 3, Colors.TEXT_MUTED);
 	}
@@ -178,7 +185,8 @@ final class ModuleSettingsView {
 		en.set(m.enabled() ? 1 : 0, ui.now, 150, Ease.EASE);
 		ui.switchToggle(right - 44 + 5, r0 + 24 - 10, true, en.get(ui.now));
 		ui.hit(x, r0 + 4, w, 40, () -> screen.toggle(m), null);
-		ui.tip(x, r0 + 4, w - 60, 40, "Turns " + m.name + " on or off.");
+		String blockedWhy = m.unavailable();
+		ui.tip(x, r0 + 4, w - 60, 40, blockedWhy != null ? blockedWhy : "Turns " + m.name + " on or off.");
 		ui.cv.fillRect(x + 1, r0 + 48, x + w - 1, r0 + 49, Colors.white(0.07f));
 
 		float r1 = r0 + 49;

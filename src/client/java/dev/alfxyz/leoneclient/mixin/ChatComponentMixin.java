@@ -35,7 +35,7 @@ public abstract class ChatComponentMixin {
 		at = @At("HEAD"), cancellable = true)
 	private void leoneclient$incoming(Component message, @Nullable MessageSignature signature, GuiMessageSource source, @Nullable GuiMessageTag tag, CallbackInfo ci) {
 		if (leoneclient$replaying || source == GuiMessageSource.SYSTEM_CLIENT) return;
-		Component out = ChatHooks.incoming(message);
+		Component out = ChatHooks.incoming(message, source);
 		if (out != null) out = StaffChat.wrapIfStaff(out);
 		if (out == message) return;
 		ci.cancel();

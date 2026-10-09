@@ -906,8 +906,13 @@ final class Overlays {
 		private List<Part> parts() {
 			List<Part> out = new java.util.ArrayList<>();
 			ModModeStatus m = Modules.MOD_MODE;
-			out.add(m.modMode() ? new Part(Icons.SHIELD_CHECK, "Mod mode", 0xFF4ADE80) : new Part(Icons.SHIELD, "Mod mode off", Colors.TEXT_HINT));
+			out.add(switch (m.modMode()) {
+				case ON -> new Part(Icons.SHIELD_CHECK, "Mod mode", 0xFF4ADE80);
+				case OFF -> new Part(Icons.SHIELD, "Not in mod mode", Colors.TEXT_HINT);
+				case UNKNOWN -> new Part(Icons.SHIELD, "Mod mode unknown", Colors.TEXT_HINT);
+			});
 			if (m.vanished()) out.add(new Part(Icons.EYE_OFF, "Vanished", 0xFFC084FC));
+			// only when Leone Client's own Staff Chat is the one hiding staff chat
 			if (Modules.STAFF_CHAT.active()) {
 				boolean hidden = StaffChat.isHidden();
 				out.add(new Part(hidden ? Icons.VIDEO_OFF : Icons.EYE, hidden ? "Staff chat hidden" : "Staff chat visible", hidden ? 0xFF4ADE80 : 0xFFFBBF24));

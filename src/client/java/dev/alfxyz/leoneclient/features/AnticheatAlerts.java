@@ -25,8 +25,8 @@ import org.jspecify.annotations.Nullable;
 public final class AnticheatAlerts extends Module {
 	/** "Anticheat > Name flagged Reach A (69.0x)", optionally followed by " (Server)". */
 	private static final Pattern FLAGGED = Pattern.compile("^Anticheat > (\\S+) flagged (.+?) \\(([\\d.,]+)x\\)(?: \\(([^)]+)\\))?$");
-	/** "[GrimAC] Name failed Simulation (vl:51.0): details". */
-	private static final Pattern FAILED = Pattern.compile("^\\[[^\\]]{1,20}\\] (\\S+) failed (\\S+) \\(vl:([\\d.,]+)\\).*$", Pattern.DOTALL);
+	/** "[GrimAC] Name failed Simulation (vl:51.0): details", also "[Vulcan] Name failed Bad Packets (9) (vl:1/10): details". */
+	private static final Pattern FAILED = Pattern.compile("^\\[[^\\]]{1,20}\\] (\\S+) failed (.+?)(?: \\(\\d+\\))? \\(vl:([\\d.,]+)(?:/\\d+)?\\).*$", Pattern.DOTALL);
 	private static final long PANEL_MS = 3 * 60_000, NEW_PLAYER_MS = 5 * 60_000;
 
 	public final Setting.Toggle hideRepeats = add(new Setting.Toggle("hide_repeats", "Hide repeats", "CHAT", true),

@@ -7,7 +7,9 @@ import dev.alfxyz.leoneclient.features.ActionBars;
 import dev.alfxyz.leoneclient.hud.Hud;
 import dev.alfxyz.leoneclient.hud.HudEditorScreen;
 import dev.alfxyz.leoneclient.module.Modules;
+import dev.alfxyz.leoneclient.features.ChatHooks;
 import dev.alfxyz.leoneclient.staffchat.StaffChat;
+import dev.alfxyz.leoneclient.staffchat.StaffState;
 import dev.alfxyz.leoneclient.ui.LeoneScreen;
 import dev.alfxyz.leoneclient.web.Friends;
 import java.nio.file.Files;
@@ -176,7 +178,7 @@ public final class DevAutomation {
 		server(mc, "[Alert] 2500 Gems LAVA RISING EVENT (EU) (EU West) starting in 3 minutes. [Click to join]");
 		server(mc, "Friends | Friend_One has joined the server WildKits.");
 		server(mc, "Friends | Friend_Two has left the server ElytraBox.");
-		server(mc, "[Owner] Friend_One: hey " + me + ", want to duel?");
+		server(mc, "Owner Friend_One » hey " + me + ", want to duel?");
 		server(mc, "☠ Victim_One was slain by " + me + " using Sword.");
 		server(mc, "☠ Victim_Two was shot by " + me + ".");
 		server(mc, "☠ " + me + " was slain by Victim_Two.");
@@ -200,6 +202,105 @@ public final class DevAutomation {
 		mc.getConnection().sendCommand("enderchest 3");
 		mc.getConnection().sendCommand("msg Somebody you are gay");
 		LoggerFactory.getLogger("Scoreboard").warn("Requested creation of existing team '{}'", "glow-GREEN");
+	}
+
+	private static void check(String what, boolean ok) {
+		if (ok) LOGGER.info("Leone autotest CHECK pass: {}", what);
+		else LOGGER.error("Leone autotest CHECK FAIL: {}", what);
+	}
+
+	/** Puts items in the hotbar on the integrated server, like LeoneMC's mod mode does. Null clears a slot. */
+	private static void hotbar(Minecraft mc, String... named) {
+		var server = mc.getSingleplayerServer();
+		if (server == null) return;
+		server.execute(() -> {
+			var player = server.getPlayerList().getPlayers().getFirst();
+			for (int i = 0; i < 9; i++) {
+				net.minecraft.world.item.ItemStack stack = net.minecraft.world.item.ItemStack.EMPTY;
+				if (i < named.length && named[i] != null) {
+					String[] parts = named[i].split("\\|", 2);
+					net.minecraft.world.item.Item item = net.minecraft.core.registries.BuiltInRegistries.ITEM.getValue(
+						net.minecraft.resources.Identifier.withDefaultNamespace(parts[0]));
+					stack = new net.minecraft.world.item.ItemStack(item);
+					if (parts.length > 1) stack.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME, Component.literal(parts[1]));
+				}
+				player.getInventory().setItem(i, stack);
+			}
+		});
+	}
+
+	private static final String[] NORMAL_HOTBAR = {"diamond_sword", "bow", "golden_apple", null, null, null, null, null, "cooked_beef"};
+	private static final String[] MOD_HOTBAR = {"compass|Random Teleport", "packed_ice|Freeze", null, "book|Inspect Inventory", null, null, null, "ender_eye|Vanish", "clock|Online Staff"};
+
+	/** Mod mode by message, learning its items, a silent join recognised from them, vanish timing and spoofing. */
+	private static void staffStateChecks() {
+		at(300, "staff: start clean", mc -> {
+			StaffState.debugForget();
+			StaffState.onJoin();
+			Modules.STAFF_CHAT.setEnabled(true);
+			Modules.STAFF_CHAT.reveal.value = true;
+			hotbar(mc, NORMAL_HOTBAR);
+			check("mod mode starts unknown after a join", StaffState.modMode() == StaffState.ModMode.UNKNOWN);
+		});
+		at(800, "staff: player chat cannot switch mod mode", mc -> {
+			ChatHooks.incoming(Component.literal("You are now in mod mode"), net.minecraft.client.multiplayer.chat.GuiMessageSource.PLAYER);
+			check("player chat saying 'You are now in mod mode' is ignored", StaffState.modMode() == StaffState.ModMode.UNKNOWN);
+		});
+		at(100, "staff: mod mode on", mc -> {
+			server(mc, "You are now in mod mode");
+			hotbar(mc, MOD_HOTBAR);
+		});
+		at(200, "staff: on by message", mc -> {
+			check("mod mode on from the message", StaffState.modMode() == StaffState.ModMode.ON && StaffState.modSource() == StaffState.Source.MESSAGE);
+			check("staff chat shown while in mod mode (reveal on)", StaffChat.revealed() && !StaffChat.isHidden());
+			Modules.STAFF_CHAT.reveal.value = false;
+		});
+		at(100, "staff: reveal setting applies at once", mc -> {
+			check("turning reveal off hides staff chat straight away", !StaffChat.revealed() && StaffChat.isHidden());
+			Modules.STAFF_CHAT.reveal.value = true;
+		});
+		at(100, "staff: reveal back on", mc -> check("turning reveal on shows it straight away", StaffChat.revealed() && !StaffChat.isHidden()));
+		at(3600, "staff: mod mode off", mc -> {
+			server(mc, "You are no longer in mod mode");
+			hotbar(mc, NORMAL_HOTBAR);
+		});
+		at(200, "staff: off by message", mc -> check("mod mode off from the message", StaffState.modMode() == StaffState.ModMode.OFF));
+		at(3600, "staff: learned", mc -> {
+			check("mod mode's hotbar items were learned", StaffState.itemsLearned());
+			LOGGER.info("Leone autotest: {}", StaffState.describe());
+			// a silent join in mod mode, as with LeoneMC's "Enable Mod Mode on Join"
+			StaffState.onJoin();
+			hotbar(mc, MOD_HOTBAR);
+		});
+		at(1500, "staff: silent join recognised", mc -> {
+			check("silent join in mod mode recognised from the hotbar", StaffState.modMode() == StaffState.ModMode.ON && StaffState.modSource() == StaffState.Source.ITEMS);
+			StaffState.onJoin();
+			hotbar(mc, NORMAL_HOTBAR);
+		});
+		at(1500, "staff: not yet settled", mc -> check("a join without mod mode items is unknown until the hotbar settles", StaffState.modMode() == StaffState.ModMode.UNKNOWN));
+		at(8000, "staff: settled", mc -> {
+			check("a join without mod mode items ends as not in mod mode", StaffState.modMode() == StaffState.ModMode.OFF);
+			check("not revealed out of mod mode", !StaffChat.revealed());
+		});
+		for (int i = 0; i < 5; i++) at(i == 0 ? 100 : 1000, "staff: vanish action bar", mc -> mc.gui.hud.setOverlayMessage(Component.literal("§cYou are currently Vanished"), false));
+		at(200, "staff: vanished", mc -> check("vanished while the action bar repeats", StaffState.vanished() && StaffChat.revealed()));
+		at(2600, "staff: unvanished", mc -> {
+			check("vanish ends within about two and a half seconds of the last action bar", !StaffState.vanished());
+			LOGGER.info("Leone autotest: {}", StaffState.describe());
+			Modules.STAFF_CHAT.setEnabled(false);
+		});
+		at(100, "staff: spoofed mentions", mc -> {
+			String me = mc.getUser().getName();
+			String before = String.valueOf(Modules.MENTIONS.status());
+			server(mc, "[Staff] " + me + " has joined your server (from NA-Hub-01)");
+			server(mc, "Infamous " + me + " has joined the lobby!");
+			server(mc, "Victim_Three was killed by " + me + ".");
+			server(mc, "Gold " + me + " » hello everyone");
+			String afterSystem = String.valueOf(Modules.MENTIONS.status());
+			check("joins, kills and your own messages are not mentions (" + before + " -> " + afterSystem + ")", before.equals(afterSystem));
+			server(mc, "Bronze Friend_One » hey @" + me + " are you there");
+			check("a player saying your name is a mention (" + Modules.MENTIONS.status() + ")", !before.equals(String.valueOf(Modules.MENTIONS.status())));
+		});
 	}
 
 	private static void buildScript() {
@@ -322,6 +423,8 @@ public final class DevAutomation {
 			LOGGER.info("Leone autotest: session kills={} deaths={} streak={}", Modules.SESSION_STATS.kills(), Modules.SESSION_STATS.deaths(), Modules.SESSION_STATS.streak());
 			LOGGER.info("Leone autotest: timers={}", Modules.TIMERS.list().size());
 		});
+		staffStateChecks();
+
 		// ---- README images: the menu as a player without a staff rank sees it, with no friends loaded
 		at(200, "docs: daytime", mc -> {
 			var server = mc.getSingleplayerServer();

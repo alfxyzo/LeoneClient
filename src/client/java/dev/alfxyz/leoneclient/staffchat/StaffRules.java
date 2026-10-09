@@ -6,7 +6,7 @@ import java.util.Locale;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
-/** Which chat lines count as staff chat on LeoneMC, and the texts that mean vanish or mod mode. */
+/** Which chat lines count as staff chat on LeoneMC. */
 public final class StaffRules {
 	static final List<String> DEFAULT_STARTS_WITH = List.of("[Staff]", "[SC]", "Anticheat");
 	static final List<String> DEFAULT_CONTAINS = List.of("Tick #");
@@ -67,14 +67,9 @@ public final class StaffRules {
 		"\u274c You cannot teleport to players on other servers\\.",
 		"\u274c You don't have permission to teleport to offline players\\.",
 		"\\[Server Information\\] .* has been (?:un-)?whitelisted\\.");
-	static final String VANISH_TEXT = "You are currently Vanished";
-	static final List<String> STAFF_MODE_ON = List.of("You are now in mod mode");
-	static final List<String> STAFF_MODE_OFF = List.of("You are no longer in mod mode");
 
 	/** While vanished or in mod mode, staff chat is drawn normally so it can be recorded. */
 	public boolean revealWhileVanished = true;
-	/** How long after the vanish text was last shown the player still counts as vanished. */
-	public int vanishGraceSeconds = 3;
 	/** Shows a short note (only on your screen) when hiding turns on or off. */
 	public boolean showStatusMessages = true;
 	/** More line starts to treat as staff chat, from the module's settings. */
@@ -108,25 +103,6 @@ public final class StaffRules {
 
 	private static boolean startsWith(String text, String prefix) {
 		return text.regionMatches(true, 0, prefix, 0, prefix.length());
-	}
-
-	/** True if this action bar text says you are vanished. */
-	public boolean isVanishText(String raw) {
-		return clean(raw).toLowerCase(Locale.ROOT).contains(VANISH_TEXT.toLowerCase(Locale.ROOT));
-	}
-
-	/** True if this chat message starts mod mode. Only the start of the line counts, so players cannot fake it. */
-	public boolean isStaffModeOn(String raw) {
-		String text = clean(raw);
-		for (String p : STAFF_MODE_ON) if (startsWith(text, p)) return true;
-		return false;
-	}
-
-	/** True if this chat message ends mod mode. */
-	public boolean isStaffModeOff(String raw) {
-		String text = clean(raw);
-		for (String p : STAFF_MODE_OFF) if (startsWith(text, p)) return true;
-		return false;
 	}
 
 	/**

@@ -3,7 +3,7 @@ package dev.alfxyz.leoneclient.mixin;
 import dev.alfxyz.leoneclient.Chat;
 import dev.alfxyz.leoneclient.features.ActionBars;
 import dev.alfxyz.leoneclient.module.Modules;
-import dev.alfxyz.leoneclient.staffchat.StaffChat;
+import dev.alfxyz.leoneclient.staffchat.StaffState;
 import net.minecraft.client.gui.Hud;
 import net.minecraft.network.chat.Component;
 import org.spongepowered.asm.mixin.Mixin;
@@ -16,8 +16,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class HudMixin {
 	@Inject(method = "setOverlayMessage", at = @At("HEAD"), cancellable = true)
 	private void leoneclient$actionBar(Component message, boolean animateColor, CallbackInfo ci) {
-		StaffChat.onActionBar(message);
 		String plain = Chat.plain(message);
+		StaffState.onActionBar(plain);
 		if (Modules.PACK_WARNINGS.blocks(plain)) {
 			ci.cancel();
 			return;
