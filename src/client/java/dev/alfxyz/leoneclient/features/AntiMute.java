@@ -31,7 +31,7 @@ public final class AntiMute extends Module {
 
 	public AntiMute() {
 		super("anti_mute", Category.CHAT, "Anti-Mute", Icons.ERASER,
-			"Swaps out words that would get you muted on LeoneMC before your message is sent.", true);
+			"Swaps out words that would get you muted on LeoneMC before your message is sent.", false);
 	}
 
 	private String rep() {

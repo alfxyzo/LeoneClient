@@ -1,5 +1,6 @@
 package dev.alfxyz.leoneclient.features;
 
+import dev.alfxyz.leoneclient.Time;
 import dev.alfxyz.leoneclient.module.Category;
 import dev.alfxyz.leoneclient.module.Module;
 import dev.alfxyz.leoneclient.module.Setting;
@@ -28,7 +29,7 @@ public final class FriendHighlight extends Module {
 
 	public FriendHighlight() {
 		super("friend_highlight", Category.FRIENDS, "Friend Highlight", Icons.STAR,
-			"Makes your LeoneMC friends' names stand out wherever they appear in chat.", true);
+			"Makes your LeoneMC friends' names stand out wherever they appear in chat.", false);
 	}
 
 	private @Nullable Pattern pattern() {
@@ -64,10 +65,14 @@ public final class FriendHighlight extends Module {
 		MutableComponent c = Component.literal(f != null ? f.name() : name).withColor(f != null ? f.color() : 0xFFFFFF)
 			.append(Component.literal("  LeoneMC friend").withStyle(ChatFormatting.GRAY));
 		if (f == null) return c;
-		Friends.Location at = Friends.location(f.name());
 		String where;
-		if (Friends.online(f)) where = at != null && at.online() ? "Online on " + at.server() : "Online";
-		else where = "Offline";
+		if (Friends.online(f)) {
+			String server = Friends.server(f);
+			where = server != null ? "Online on " + server : "Online";
+		} else {
+			long seen = Friends.lastSeen(f);
+			where = seen > 0 ? "Last seen " + Time.ago(seen) : "Offline";
+		}
 		return c.append(Component.literal("\n" + where).withStyle(Friends.online(f) ? ChatFormatting.GREEN : ChatFormatting.DARK_GRAY));
 	}
 }

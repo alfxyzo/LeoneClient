@@ -15,6 +15,12 @@ public final class ChatHooks {
 	public static @Nullable Component incoming(Component message) {
 		String plain = Chat.plain(message);
 		LeoneMC.onChat(plain);
+		// trackers first, so they see lines that a filter below hides
+		Modules.TIMERS.track(plain);
+		Modules.SESSION_STATS.track(plain);
+		Modules.MOD_MODE.track(plain);
+		Modules.REPORTS.track(plain);
+		if (Modules.ANTICHEAT_ALERTS.handle(plain)) return null;
 		if (Modules.ALERT_FILTER.hides(plain)) return null;
 		Component out = message;
 		if (LeoneMC.active()) {

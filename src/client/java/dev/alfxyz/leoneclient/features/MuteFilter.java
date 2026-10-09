@@ -41,6 +41,7 @@ public final class MuteFilter {
 		discrimination.add(p("卍|卐"));
 		discrimination.add(p("k[a4]nk[e3]r"));
 		discrimination.add(p("n[a4]z[i1]"));
+		discrimination.add(p("\\bg[4a]y[s$5]?\\b"));
 
 		deathWishes.add(p("(h[a4]ng|n[3e]ck|k[1il!]ll) ?y[o0]urs[e3]lf"));
 		deathWishes.add(p("\\bk+y+[s\\$5]+\\b"));
@@ -84,7 +85,6 @@ public final class MuteFilter {
 		swears.add(p("[s$][l1]u[t+][s$]?"));
 		swears.add(p("r[3e]t[4a]rd"));
 		swears.add(p("cunt[s$]?"));
-		swears.add(p("\\bg[4a]y\\b"));
 		swears.add(p("wh[o0]r[e3][s$]?"));
 		swears.add(p("w[a4]nk[e3]r[s$]?"));
 		swears.add(p("m[i1][e3]rd[a4]"));

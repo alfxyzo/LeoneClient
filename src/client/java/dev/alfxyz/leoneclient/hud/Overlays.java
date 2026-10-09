@@ -1,9 +1,15 @@
 package dev.alfxyz.leoneclient.hud;
 
 import dev.alfxyz.leoneclient.LeoneMC;
+import dev.alfxyz.leoneclient.Time;
 import dev.alfxyz.leoneclient.anim.Anim;
 import dev.alfxyz.leoneclient.anim.Ease;
 import dev.alfxyz.leoneclient.features.ActionBars;
+import dev.alfxyz.leoneclient.features.AnticheatAlerts;
+import dev.alfxyz.leoneclient.features.ModModeStatus;
+import dev.alfxyz.leoneclient.features.SessionStats;
+import dev.alfxyz.leoneclient.features.Timers;
+import dev.alfxyz.leoneclient.staffchat.StaffChat;
 import dev.alfxyz.leoneclient.module.Module;
 import dev.alfxyz.leoneclient.module.Modules;
 import dev.alfxyz.leoneclient.render.Gfx;
@@ -33,6 +39,7 @@ final class Overlays {
 
 	static List<Overlay> create() {
 		return List.of(new Watermark(), new ModuleList(), new ActionBarOverlay(), new CombatBarOverlay(), new Notifications(), new ServerOverlay(),
+			new TimersPanel(), new SessionStatsOverlay(), new StaffStatusOverlay(), new AnticheatPanel(),
 			new Fps(), new Ping(), new Coordinates(), new Speed(), new Cps(), new Keystrokes());
 	}
 
@@ -647,6 +654,289 @@ final class Overlays {
 				c.text.draw(c.cv, c.text.fit(n.detail(), DETAIL, maxW), tx, top + lh + c.text.ascent(DETAIL), DETAIL, Colors.TEXT_HINT);
 				c.cv.pop();
 				cy += ROW + GAP;
+			}
+		}
+	}
+
+	// ------------------------------------------------------------- panels
+
+	/** A glass panel with a small caps title, used by the list overlays. */
+	abstract static class Panel extends Overlay {
+		protected static final Style CAPS = new Style(10.5f, Weight.SEMIBOLD, 0.06f);
+		protected static final Style ROW_TITLE = Style.of(12.5f, Weight.SEMIBOLD);
+		protected static final Style ROW_TEXT = Style.of(11, Weight.REGULAR);
+		protected static final float W = 250, HEAD = 26, PAD = 10;
+
+		Panel(String id, String name, String description, int ax, int ay, float ox, float oy) {
+			super(id, name, description, false, ax, ay, ox, oy);
+		}
+
+		abstract int rows(Context c);
+
+		abstract float rowHeight();
+
+		abstract String title();
+
+		abstract void row(Context c, int i, float x, float y, float w);
+
+		@Override
+		public float width(Context c) {
+			return rows(c) == 0 ? 0 : W;
+		}
+
+		@Override
+		public float height(Context c) {
+			int n = rows(c);
+			return n == 0 ? 0 : HEAD + n * rowHeight() + PAD - 4;
+		}
+
+		@Override
+		public void draw(Context c, float x, float y, float w, float h) {
+			int n = rows(c);
+			if (n == 0) return;
+			c.cv.fillRoundRect(x, y, w, h, 12, Colors.glass(0.7f));
+			c.cv.borderRoundRect(x, y, w, h, 12, 1, Colors.white(0.08f));
+			c.text.draw(c.cv, title(), x + PAD + 2, c.text.baselineFor(CAPS, y + HEAD / 2 + 1), CAPS, Colors.TEXT_HINT);
+			for (int i = 0; i < n; i++) row(c, i, x + PAD, y + HEAD + i * rowHeight(), w - 2 * PAD);
+		}
+	}
+
+	static final class AnticheatPanel extends Panel {
+		private static final int MAX = 6;
+
+		AnticheatPanel() {
+			super("anticheat_panel", "Anticheat Panel", "Players flagged recently", START, CENTER, 8, -60);
+		}
+
+		@Override
+		public boolean available() {
+			return Modules.ANTICHEAT_ALERTS.category.visible();
+		}
+
+		@Override
+		public boolean enabled() {
+			return Modules.ANTICHEAT_ALERTS.enabled() && available();
+		}
+
+		@Override
+		public void setEnabled(boolean on) {
+			Modules.ANTICHEAT_ALERTS.setEnabled(on);
+		}
+
+		@Override
+		public boolean shown() {
+			return !Modules.ANTICHEAT_ALERTS.recent().isEmpty();
+		}
+
+		private List<AnticheatAlerts.Suspect> list(Context c) {
+			List<AnticheatAlerts.Suspect> l = Modules.ANTICHEAT_ALERTS.recent();
+			if (l.isEmpty() && c.editor) {
+				AnticheatAlerts.Suspect s = new AnticheatAlerts.Suspect("Player");
+				s.checks.put("Reach A", 6);
+				s.checks.put("Simulation", 2);
+				s.total = 8;
+				s.lastAt = System.currentTimeMillis() - 4000;
+				s.server = "ElytraBox";
+				return List.of(s);
+			}
+			return l.subList(0, Math.min(MAX, l.size()));
+		}
+
+		@Override
+		int rows(Context c) {
+			return list(c).size();
+		}
+
+		@Override
+		float rowHeight() {
+			return 38;
+		}
+
+		@Override
+		String title() {
+			return "ANTICHEAT";
+		}
+
+		@Override
+		void row(Context c, int i, float x, float y, float w) {
+			AnticheatAlerts.Suspect s = list(c).get(i);
+			String count = "×" + s.total;
+			float cw = c.text.width(count, ROW_TITLE);
+			c.text.draw(c.cv, c.text.fit(s.name, ROW_TITLE, w - cw - 8), x + 2, c.text.baselineFor(ROW_TITLE, y + 10), ROW_TITLE, Colors.TEXT);
+			c.text.draw(c.cv, count, x + w - cw, c.text.baselineFor(ROW_TITLE, y + 10), ROW_TITLE, 0xFFF87171);
+			StringBuilder checks = new StringBuilder();
+			for (var e : s.topChecks()) {
+				if (!checks.isEmpty()) checks.append(", ");
+				checks.append(e.getKey()).append(" ×").append(e.getValue());
+			}
+			String age = Time.ago(s.lastAt) + (s.server != null ? " · " + s.server : "");
+			float aw = c.text.width(age, ROW_TEXT);
+			c.text.draw(c.cv, c.text.fit(checks.toString(), ROW_TEXT, w - aw - 10), x + 2, c.text.baselineFor(ROW_TEXT, y + 26), ROW_TEXT, Colors.TEXT_MUTED);
+			c.text.draw(c.cv, age, x + w - aw, c.text.baselineFor(ROW_TEXT, y + 26), ROW_TEXT, Colors.TEXT_HINT);
+		}
+	}
+
+	static final class TimersPanel extends Panel {
+		TimersPanel() {
+			super("timers", "Timers", "Event and restart countdowns", END, CENTER, 8, -110);
+		}
+
+		@Override
+		public boolean enabled() {
+			return Modules.TIMERS.enabled();
+		}
+
+		@Override
+		public void setEnabled(boolean on) {
+			Modules.TIMERS.setEnabled(on);
+		}
+
+		@Override
+		public boolean shown() {
+			return !Modules.TIMERS.list().isEmpty();
+		}
+
+		private List<Timers.Countdown> list(Context c) {
+			List<Timers.Countdown> l = Modules.TIMERS.list();
+			if (l.isEmpty() && c.editor) return List.of(SAMPLE);
+			return l.subList(0, Math.min(4, l.size()));
+		}
+
+		private static final Timers.Countdown SAMPLE = new Timers.Countdown(Timers.Kind.EVENT, "Lava Rising", "EU · EU West · 2,500 gems", Long.MAX_VALUE / 2);
+
+		@Override
+		int rows(Context c) {
+			return list(c).size();
+		}
+
+		@Override
+		float rowHeight() {
+			return 36;
+		}
+
+		@Override
+		String title() {
+			return "TIMERS";
+		}
+
+		@Override
+		void row(Context c, int i, float x, float y, float w) {
+			Timers.Countdown t = list(c).get(i);
+			boolean restart = t.kind == Timers.Kind.RESTART;
+			long left = t == SAMPLE ? 7 * 60_000 + 30_000 : t.endsAt - System.currentTimeMillis();
+			int color = restart ? 0xFFF87171 : left < 60_000 ? 0xFFFBBF24 : Colors.ACCENT;
+			Gfx.icons().draw(c.cv, restart ? Icons.ALERT : Icons.CLOCK, x + 2, y + 9, 16, 1.8f, color);
+			String clock = left <= 0 ? "Now" : Time.clock(left);
+			float cw = c.text.width(clock, VALUE_STRONG);
+			c.text.draw(c.cv, clock, x + w - cw, c.text.baselineFor(VALUE_STRONG, y + 17), VALUE_STRONG, left <= 0 ? 0xFF4ADE80 : Colors.TEXT);
+			float tx = x + 2 + 16 + 9, maxW = w - (tx - x) - cw - 10;
+			c.text.draw(c.cv, c.text.fit(t.title, ROW_TITLE, maxW), tx, c.text.baselineFor(ROW_TITLE, y + 10), ROW_TITLE, Colors.TEXT);
+			c.text.draw(c.cv, c.text.fit(t.detail, ROW_TEXT, maxW), tx, c.text.baselineFor(ROW_TEXT, y + 25), ROW_TEXT, Colors.TEXT_HINT);
+		}
+	}
+
+	static final class SessionStatsOverlay extends Overlay {
+		SessionStatsOverlay() {
+			super("session_stats", "Session Stats", "Kills, deaths, KDR and streak", false, START, START, 8, 238);
+		}
+
+		@Override
+		public boolean enabled() {
+			return Modules.SESSION_STATS.enabled();
+		}
+
+		@Override
+		public void setEnabled(boolean on) {
+			Modules.SESSION_STATS.setEnabled(on);
+		}
+
+		private String[][] parts() {
+			SessionStats s = Modules.SESSION_STATS;
+			return new String[][] {{String.valueOf(s.kills()), "K"}, {String.valueOf(s.deaths()), "D"}, {s.kdr(), "KDR"}, {String.valueOf(s.streak()), "streak"}};
+		}
+
+		@Override
+		public float width(Context c) {
+			float w = 10;
+			for (String[] p : parts()) w += c.text.width(p[0], VALUE_STRONG) + 4 + c.text.width(p[1], VALUE) + 12;
+			return w - 2;
+		}
+
+		@Override
+		public float height(Context c) {
+			return PILL_H;
+		}
+
+		@Override
+		public void draw(Context c, float x, float y, float w, float h) {
+			c.pill(x, y, w, h);
+			float cx = x + 10, base = c.text.baselineFor(VALUE, y + h / 2);
+			for (String[] p : parts()) {
+				c.text.draw(c.cv, p[0], cx, base, VALUE_STRONG, Colors.TEXT);
+				cx += c.text.width(p[0], VALUE_STRONG) + 4;
+				c.text.draw(c.cv, p[1], cx, base, VALUE, Colors.TEXT_HINT);
+				cx += c.text.width(p[1], VALUE) + 12;
+			}
+		}
+	}
+
+	static final class StaffStatusOverlay extends Overlay {
+		StaffStatusOverlay() {
+			super("staff_status", "Staff Status", "Mod mode, vanish and staff chat", false, CENTER, START, 0, 8);
+		}
+
+		@Override
+		public boolean available() {
+			return Modules.MOD_MODE.category.visible();
+		}
+
+		@Override
+		public boolean enabled() {
+			return Modules.MOD_MODE.enabled() && available();
+		}
+
+		@Override
+		public void setEnabled(boolean on) {
+			Modules.MOD_MODE.setEnabled(on);
+		}
+
+		private record Part(String icon, String text, int color) {
+		}
+
+		private List<Part> parts() {
+			List<Part> out = new java.util.ArrayList<>();
+			ModModeStatus m = Modules.MOD_MODE;
+			out.add(m.modMode() ? new Part(Icons.SHIELD_CHECK, "Mod mode", 0xFF4ADE80) : new Part(Icons.SHIELD, "Mod mode off", Colors.TEXT_HINT));
+			if (m.vanished()) out.add(new Part(Icons.EYE_OFF, "Vanished", 0xFFC084FC));
+			if (Modules.STAFF_CHAT.active()) {
+				boolean hidden = StaffChat.isHidden();
+				out.add(new Part(hidden ? Icons.VIDEO_OFF : Icons.EYE, hidden ? "Staff chat hidden" : "Staff chat visible", hidden ? 0xFF4ADE80 : 0xFFFBBF24));
+			}
+			if (m.punishments() > 0) out.add(new Part(Icons.FLAG, m.punishments() + (m.punishments() == 1 ? " punishment" : " punishments"), Colors.TEXT_DOCK));
+			return out;
+		}
+
+		@Override
+		public float width(Context c) {
+			float w = 8;
+			for (Part p : parts()) w += 14 + 6 + c.text.width(p.text(), VALUE) + 14;
+			return w - 6;
+		}
+
+		@Override
+		public float height(Context c) {
+			return PILL_H;
+		}
+
+		@Override
+		public void draw(Context c, float x, float y, float w, float h) {
+			c.pill(x, y, w, h);
+			float cx = x + 10, base = c.text.baselineFor(VALUE, y + h / 2);
+			for (Part p : parts()) {
+				Gfx.icons().draw(c.cv, p.icon(), cx, y + (h - 14) / 2, 14, 1.8f, p.color());
+				cx += 14 + 6;
+				c.text.draw(c.cv, p.text(), cx, base, VALUE, p.color());
+				cx += c.text.width(p.text(), VALUE) + 14;
 			}
 		}
 	}

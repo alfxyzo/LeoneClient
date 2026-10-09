@@ -34,6 +34,9 @@ public abstract class Overlay {
 	private boolean enabled;
 	public int ax, ay;
 	public float ox, oy;
+	/** Size multiplier set in the HUD editor. */
+	public float scale = 1;
+	public static final float MIN_SCALE = 0.5f, MAX_SCALE = 2.5f;
 
 	protected Overlay(String id, String name, String description, boolean enabled, int ax, int ay, float ox, float oy) {
 		this.id = id;
@@ -53,6 +56,11 @@ public abstract class Overlay {
 		ay = defAy;
 		ox = defOx;
 		oy = defOy;
+		scale = 1;
+	}
+
+	public void setScale(float s) {
+		scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, Math.round(s * 20) / 20f));
 	}
 
 	/** True when {@link #ox} and {@link #oy} are GUI pixels rather than design px. */
@@ -66,6 +74,11 @@ public abstract class Overlay {
 
 	public void setEnabled(boolean on) {
 		enabled = on;
+	}
+
+	/** False when this overlay is not offered to this player at all (Staff overlays for non-staff). */
+	public boolean available() {
+		return true;
 	}
 
 	/** False while the overlay has nothing to do, even though it is on (it then also leaves the HUD editor). */
@@ -155,6 +168,7 @@ public abstract class Overlay {
 		o.addProperty("ay", ay);
 		o.addProperty("ox", ox);
 		o.addProperty("oy", oy);
+		o.addProperty("scale", scale);
 		return o;
 	}
 
@@ -164,6 +178,7 @@ public abstract class Overlay {
 		if (o.has("ay")) ay = Math.max(START, Math.min(END, o.get("ay").getAsInt()));
 		if (o.has("ox")) ox = o.get("ox").getAsFloat();
 		if (o.has("oy")) oy = o.get("oy").getAsFloat();
+		if (o.has("scale")) setScale(o.get("scale").getAsFloat());
 	}
 
 	void resetEnabled() {

@@ -19,7 +19,7 @@ public final class ActionBar extends Module {
 
 	public ActionBar() {
 		super("action_bar", Category.HUD, "Action Bar", Icons.PANEL_BOTTOM,
-			"Shows the action bar wherever you put it with Modify HUD. With Combat Bar on, the combat line no longer replaces it.", true);
+			"Shows the action bar wherever you put it with Modify HUD. With Combat Bar on, the combat line no longer replaces it.", false);
 	}
 
 	/** The line to draw: the regular bar (plus the combat line when merged), or whatever came last. */

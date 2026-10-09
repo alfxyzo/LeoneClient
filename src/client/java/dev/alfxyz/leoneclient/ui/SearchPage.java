@@ -42,6 +42,7 @@ final class SearchPage extends Page {
 		} else {
 			all = new ArrayList<>();
 			for (Module m : Modules.all()) {
+				if (!m.category.visible()) continue;
 				String name = m.name.toLowerCase(Locale.ROOT);
 				if (name.contains(q) || m.category.displayName.toLowerCase(Locale.ROOT).startsWith(q)
 					|| q.length() >= 3 && m.description.toLowerCase(Locale.ROOT).contains(q)) all.add(m);

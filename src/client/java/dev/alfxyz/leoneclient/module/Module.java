@@ -7,8 +7,6 @@ import net.minecraft.client.Minecraft;
 
 /** A feature that can be switched on and off, with its own settings. */
 public abstract class Module {
-	public enum BindMode { TOGGLE, HOLD }
-
 	public final String id;
 	public final Category category;
 	public final String name;
@@ -19,9 +17,8 @@ public abstract class Module {
 
 	private boolean enabled;
 	public boolean visible = true;
-	/** GLFW key code, or -1 when unbound. */
+	/** GLFW key code that toggles the module, or -1 when unbound. */
 	public int bind = -1;
-	public BindMode bindMode = BindMode.TOGGLE;
 	/** Bind key state last tick, for edge detection. */
 	public boolean bindDown;
 
@@ -55,9 +52,14 @@ public abstract class Module {
 		return enabled || !toggleable();
 	}
 
-	/** Enabled, and on LeoneMC if the module needs it. */
+	/** Enabled, on LeoneMC if the module needs it, and for staff if it is a Staff module. */
 	public boolean active() {
-		return enabled() && (!leoneOnly() || LeoneMC.active());
+		return enabled() && (!leoneOnly() || LeoneMC.active()) && category.visible();
+	}
+
+	/** The module's keybind was pressed. Switches it on or off unless a module does something else. */
+	public void onBindPressed() {
+		toggle();
 	}
 
 	public void setEnabled(boolean on) {
@@ -86,11 +88,15 @@ public abstract class Module {
 		return null;
 	}
 
+	/** Why the module cannot work here, shown on its card even while it is off, or null. */
+	public String unavailable() {
+		return null;
+	}
+
 	public void reset() {
 		setEnabled(defaultEnabled);
 		visible = true;
 		bind = -1;
-		bindMode = BindMode.TOGGLE;
 		for (Setting s : settings) s.reset();
 	}
 

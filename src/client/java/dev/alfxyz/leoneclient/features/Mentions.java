@@ -28,7 +28,7 @@ public final class Mentions extends Module {
 	private long lastPing;
 
 	public Mentions() {
-		super("mentions", Category.CHAT, "Mentions", Icons.AT, "Pings you and highlights your name when someone mentions you in chat.", true);
+		super("mentions", Category.CHAT, "Mentions", Icons.AT, "Pings you and highlights your name when someone mentions you in chat.", false);
 	}
 
 	private @Nullable Pattern pattern() {

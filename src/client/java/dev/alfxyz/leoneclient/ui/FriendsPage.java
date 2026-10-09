@@ -8,11 +8,11 @@ import dev.alfxyz.leoneclient.render.Heads;
 import dev.alfxyz.leoneclient.render.Icons;
 import dev.alfxyz.leoneclient.web.Friends;
 import dev.alfxyz.leoneclient.web.LeoneWeb;
+import dev.alfxyz.leoneclient.web.Names;
 import dev.alfxyz.leoneclient.web.LeoneWeb.Friend;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.components.ChatComponent;
 import net.minecraft.util.Util;
 import org.jspecify.annotations.Nullable;
 
@@ -43,6 +43,7 @@ final class FriendsPage extends Page {
 		editingAccount = false;
 		accountError = null;
 		Friends.refresh(false);
+		Friends.wantPresence();
 	}
 
 	// ------------------------------------------------------------------ layout
@@ -137,16 +138,11 @@ final class FriendsPage extends Page {
 		Util.getPlatform().openUri(LeoneWeb.profileUrl(uuid));
 	}
 
-	private void message(String name) {
-		Minecraft mc = Minecraft.getInstance();
-		mc.gui.setScreen(null);
-		mc.gui.openChatAndAddText(ChatComponent.ChatMethod.MESSAGE, "/msg " + name + " ");
-	}
-
 	// --------------------------------------------------------------------- draw
 
 	@Override
 	void draw(Ui ui, float x, float y) {
+		Friends.wantPresence();
 		ui.header(Icons.FRIENDS, "Friends", x, y);
 		float rx = x + W;
 		float pw = ui.buttonWidth("Profile", Icons.EXTERNAL, Ui.BUTTON);
@@ -294,20 +290,23 @@ final class FriendsPage extends Page {
 		float top = y + (TILE_H - lh - sh) / 2;
 		int nameColor = 0xFF000000 | f.color();
 		ui.text.draw(ui.cv, ui.text.fit(f.name(), Ui.BODY_STRONG, maxW), tx, top + ui.text.ascent(Ui.TILE), Ui.BODY_STRONG, online ? nameColor : Colors.lerp(nameColor, Colors.TEXT_HINT, 0.4f));
-		Friends.Location at = Friends.location(f.name());
-		String status = online ? at != null && at.online() ? "On " + at.server() : "Online" : at != null && !at.online() ? "Left " + at.server() + " " + ConfigsPage.ago(at.at()) : "Offline";
+		String server = online ? Friends.server(f) : null;
+		long seen = online ? 0 : Friends.lastSeen(f);
+		String status = online ? server != null ? "On " + server : "Online" : seen > 0 ? "Last seen " + ConfigsPage.ago(seen) : "Offline";
 		ui.text.draw(ui.cv, ui.text.fit(status, Ui.SMALL, maxW), tx, top + lh + ui.text.ascent(Ui.SMALL), Ui.SMALL, online ? 0xFF86EFAC : Colors.TEXT_HINT);
 		if (!interactive) return;
-		ui.hit(x, y, TILE_W, TILE_H, () -> openProfile(f.uuid()), null);
-		ui.tip(x, y, TILE_W - 70, TILE_H, "Click to open " + f.name() + "'s profile on leonemc.net");
+		ui.hit(x, y, TILE_W, TILE_H, () -> screen.openPlayer(f.uuid(), f.name()), null);
+		ui.tip(x, y, TILE_W - 70, TILE_H, "Click to see " + f.name() + "'s profile");
 		if (ao > 0) {
 			ui.cv.push();
 			ui.cv.mulAlpha(ao);
 			float bx = x + TILE_W - 8 - 28;
 			ui.iconButton(k + "#prof", bx, y + (TILE_H - 28) / 2, 28, Icons.EXTERNAL, 14, Colors.TEXT_MUTED, Colors.WHITE, () -> openProfile(f.uuid()));
+			ui.tip(bx, y + (TILE_H - 28) / 2, 28, 28, "Open on leonemc.net");
 			if (online && LeoneMC.connected()) {
 				bx -= 32;
-				ui.iconButton(k + "#msg", bx, y + (TILE_H - 28) / 2, 28, Icons.MESSAGE, 14, Colors.TEXT_MUTED, Colors.WHITE, () -> message(f.name()));
+				ui.iconButton(k + "#msg", bx, y + (TILE_H - 28) / 2, 28, Icons.MESSAGE, 14, Colors.TEXT_MUTED, Colors.WHITE, () -> Names.message(f.uuid(), f.name()));
+				ui.tip(bx, y + (TILE_H - 28) / 2, 28, 28, "Message " + f.name());
 			}
 			ui.cv.pop();
 		}

@@ -130,15 +130,29 @@ public final class TextRenderer {
 			int cp = s.codePointAt(i);
 			i += Character.charCount(cp);
 			if (prev >= 0) pen += f.kern(prev, cp) * st.size();
-			FontFace.Glyph g = f.glyph(atlas, cp, sizeQ);
-			if (g.region() != null && g.w() > 0) {
-				Atlas.Region r = g.region();
-				float lx = x + pen + g.left() * k, ly = baseline - g.top() * k;
-				if (snap) {
-					float gx = Math.round(cv.tx(lx, ly) * gs) / gs, gy = Math.round(cv.ty(lx, ly) * gs) / gs;
+			if (snap) {
+				// the pen position keeps its fraction of a device pixel: the glyph is rasterized
+				// at the nearest of FontFace.PHASES offsets instead of being rounded to the pixel
+				float ox = x + pen;
+				float dx = cv.tx(ox, baseline) * gs, dy = cv.ty(ox, baseline) * gs;
+				int ix = (int) Math.floor(dx);
+				int phase = Math.round((dx - ix) * FontFace.PHASES);
+				if (phase == FontFace.PHASES) {
+					ix++;
+					phase = 0;
+				}
+				FontFace.Glyph g = f.glyph(atlas, cp, sizeQ, phase);
+				if (g.region() != null && g.w() > 0) {
+					Atlas.Region r = g.region();
 					float scale = truePx / rasterPx;
+					float gx = (ix + g.left() * scale) / gs, gy = (Math.round(dy) - g.top() * scale) / gs;
 					cv.texQuadGui(gx, gy, gx + g.w() * scale / gs, gy + g.h() * scale / gs, r.u0(), r.v0(), r.u1(), r.v1(), color);
-				} else {
+				}
+			} else {
+				FontFace.Glyph g = f.glyph(atlas, cp, sizeQ, 0);
+				if (g.region() != null && g.w() > 0) {
+					Atlas.Region r = g.region();
+					float lx = x + pen + g.left() * k, ly = baseline - g.top() * k;
 					cv.texQuad(lx, ly, lx + g.w() * k, ly + g.h() * k, r.u0(), r.v0(), r.u1(), r.v1(), color);
 				}
 			}

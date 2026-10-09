@@ -33,9 +33,20 @@ public final class Chat {
 		info(Component.literal(message).withStyle(ChatFormatting.GRAY));
 	}
 
-	/** Plain text of a chat line with legacy colour codes removed and whitespace trimmed. */
+	/**
+	 * Plain text of a chat line: legacy colour codes removed, then spaces, line breaks and resource-pack
+	 * icons (private-use characters, which servers put before messages) trimmed from the start, and
+	 * whitespace from the end.
+	 */
 	public static String plain(Component c) {
-		return CODES.matcher(c.getString()).replaceAll("").strip();
+		String text = CODES.matcher(c.getString()).replaceAll("");
+		int start = 0;
+		while (start < text.length()) {
+			int cp = text.codePointAt(start);
+			if (!Character.isWhitespace(cp) && !Character.isSpaceChar(cp) && Character.getType(cp) != Character.PRIVATE_USE) break;
+			start += Character.charCount(cp);
+		}
+		return text.substring(start).strip();
 	}
 
 	public static String lower(String s) {

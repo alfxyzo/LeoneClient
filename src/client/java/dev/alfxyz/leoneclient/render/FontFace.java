@@ -110,37 +110,46 @@ public final class FontFace {
 		return k;
 	}
 
-	/** Glyph bitmap at {@code sizeQ / 4} pixels per em. */
-	public Glyph glyph(Atlas atlas, int cp, int sizeQ) {
+	/** Horizontal sub-pixel positions each glyph is rasterized at, so spacing stays even. */
+	public static final int PHASES = 3;
+
+	/** Glyph bitmap at {@code sizeQ / 4} pixels per em, shifted right by {@code phase / PHASES} of a pixel. */
+	public Glyph glyph(Atlas atlas, int cp, int sizeQ, int phase) {
 		if (atlasGeneration != atlas.generation()) {
 			sizes.clear();
 			atlasGeneration = atlas.generation();
 		}
-		Int2ObjectOpenHashMap<Glyph> map = sizes.computeIfAbsent(sizeQ, k -> new Int2ObjectOpenHashMap<>());
+		int key = sizeQ * PHASES + phase;
+		Int2ObjectOpenHashMap<Glyph> map = sizes.computeIfAbsent(key, k -> new Int2ObjectOpenHashMap<>());
 		Glyph g = map.get(cp);
 		if (g != null) return g;
-		g = rasterize(atlas, cp, sizeQ / 4f);
+		g = rasterize(atlas, cp, sizeQ / 4f, phase);
 		if (g == null) {
 			// atlas full: start over (callers see the cleared generation next frame)
 			atlas.clear();
 			sizes.clear();
 			atlasGeneration = atlas.generation();
-			map = sizes.computeIfAbsent(sizeQ, k -> new Int2ObjectOpenHashMap<>());
-			g = rasterize(atlas, cp, sizeQ / 4f);
+			map = sizes.computeIfAbsent(key, k -> new Int2ObjectOpenHashMap<>());
+			g = rasterize(atlas, cp, sizeQ / 4f, phase);
 			if (g == null) g = new Glyph(0, 0, 0, 0, null);
 		}
 		map.put(cp, g);
 		return g;
 	}
 
-	private @Nullable Glyph rasterize(Atlas atlas, int cp, float px) {
+	private @Nullable Glyph rasterize(Atlas atlas, int cp, float px, int phase) {
 		synchronized (FreeTypeUtil.LIBRARY_LOCK) {
 			FreeType.FT_Set_Char_Size(face, 0, Math.round(px * 64), 72, 72);
-			if (FreeType.FT_Load_Char(face, cp, FreeType.FT_LOAD_RENDER | LOAD_TARGET_LIGHT) != 0) {
+			// light hinting only snaps vertically, so the outline can be shifted by a fraction of a pixel
+			if (FreeType.FT_Load_Char(face, cp, FreeType.FT_LOAD_DEFAULT | LOAD_TARGET_LIGHT) != 0) {
 				return new Glyph(0, 0, 0, 0, null);
 			}
 			FT_GlyphSlot slot = face.glyph();
 			if (slot == null) return new Glyph(0, 0, 0, 0, null);
+			if (slot.format() == FreeType.FT_GLYPH_FORMAT_OUTLINE && phase != 0) {
+				FreeType.FT_Outline_Translate(slot.outline(), Math.round(64f * phase / PHASES), 0);
+			}
+			if (FreeType.FT_Render_Glyph(slot, FreeType.FT_RENDER_MODE_LIGHT) != 0) return new Glyph(0, 0, 0, 0, null);
 			FT_Bitmap bmp = slot.bitmap();
 			int w = bmp.width(), h = bmp.rows(), pitch = bmp.pitch();
 			if (w == 0 || h == 0) return new Glyph(0, 0, 0, 0, null);

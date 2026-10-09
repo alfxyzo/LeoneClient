@@ -21,7 +21,7 @@ public final class CombatTimer extends Module {
 	private boolean wasTagged;
 
 	public CombatTimer() {
-		super("combat_timer", Category.COMBAT, "Combat Timer", Icons.TIMER, "Shows your combat tag countdown as a status effect.", true);
+		super("combat_timer", Category.COMBAT, "Combat Timer", Icons.TIMER, "Shows your combat tag countdown as a status effect.", false);
 	}
 
 	@Override

@@ -19,7 +19,7 @@ public final class AlertFilter extends Module {
 
 	public AlertFilter() {
 		super("alert_filter", Category.CHAT, "Alert Filter", Icons.BELL_OFF,
-			"Hides the [Alert] broadcasts you do not care about, like the staff recruitment advert.", true);
+			"Hides the [Alert] broadcasts you do not care about, like the staff recruitment advert.", false);
 	}
 
 	@Override

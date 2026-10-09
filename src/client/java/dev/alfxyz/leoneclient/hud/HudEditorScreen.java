@@ -2,6 +2,7 @@ package dev.alfxyz.leoneclient.hud;
 
 import com.mojang.blaze3d.platform.cursor.CursorTypes;
 import dev.alfxyz.leoneclient.LeoneConfig;
+import dev.alfxyz.leoneclient.anim.Anim;
 import dev.alfxyz.leoneclient.anim.Ease;
 import dev.alfxyz.leoneclient.render.Canvas;
 import dev.alfxyz.leoneclient.render.Gfx;
@@ -23,22 +24,28 @@ import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 import org.jspecify.annotations.Nullable;
 
-/** Drag overlays around the screen. Esc or Done returns to the menu. */
+/** Drag overlays around the screen and resize them. Esc or Done returns to the menu. */
 public class HudEditorScreen extends Screen {
 	private static final Style TITLE = Style.of(14, Weight.SEMIBOLD);
 	private static final Style HINT = Style.of(12, Weight.REGULAR);
 	private static final Style BUTTON = Style.of(12.5f, Weight.REGULAR);
 	private static final Style TAG = Style.of(11.5f, Weight.REGULAR);
-	private static final float SNAP = 6, MARGIN = 8;
+	private static final float SNAP = 6, MARGIN = 8, HANDLE = 9;
 
 	private final Canvas cv = Gfx.newCanvas();
 	private final double openedAt = System.nanoTime() / 1e6;
 	private final Map<Overlay, float[]> rects = new HashMap<>();
 	private @Nullable Overlay dragging;
 	private float grabX, grabY;
+	/** The overlay being resized by its corner handle, the top-left it keeps, and its unscaled size. */
+	private @Nullable Overlay resizing;
+	private float anchorX, anchorY, baseW, baseH, startScale, startDist;
 	private boolean snapCenterX, snapCenterY;
 	private double mouseX, mouseY;
-	private float[] resetBtn = new float[4], doneBtn = new float[4];
+	private float[] resetBtn = new float[4], doneBtn = new float[4], toolbar = new float[4];
+	/** The toolbar fades out of the way while you work on an overlay underneath it. */
+	private final Anim toolbarAlpha = new Anim(1);
+	private boolean toolbarFaded;
 
 	public HudEditorScreen() {
 		super(Component.literal("Modify HUD"));
@@ -96,10 +103,14 @@ public class HudEditorScreen extends Screen {
 		boolean anyEnabled = !rects.isEmpty();
 		for (Map.Entry<Overlay, float[]> e : rects.entrySet()) {
 			float[] r = e.getValue();
-			boolean active = e.getKey() == dragging || dragging == null && e.getKey() == hovered;
+			Overlay held = dragging != null ? dragging : resizing;
+			boolean active = e.getKey() == held || held == null && e.getKey() == hovered;
 			if (active) {
 				c.borderRoundRect(r[0] - 3, r[1] - 3, r[2] + 6, r[3] + 6, 9, 1.5f, Colors.accent(0.95f));
-				String name = e.getKey().name;
+				float hx = r[0] + r[2] + 3 - HANDLE / 2, hy = r[1] + r[3] + 3 - HANDLE / 2;
+				c.fillRoundRect(hx, hy, HANDLE, HANDLE, 2.5f, Colors.ACCENT);
+				c.borderRoundRect(hx, hy, HANDLE, HANDLE, 2.5f, 1, Colors.WHITE);
+				String name = e.getKey().name + "  " + Math.round(e.getKey().scale * 100) + "%";
 				float tw = text.width(name, TAG) + 14;
 				float ty = r[1] - 3 - 22 < 0 ? r[1] + r[3] + 7 : r[1] - 3 - 22;
 				float tx = Math.max(2, Math.min(sw - tw - 2, r[0] - 3));
@@ -110,14 +121,50 @@ public class HudEditorScreen extends Screen {
 			}
 		}
 
+		Overlay focus = dragging != null ? dragging : resizing != null ? resizing : hovered;
+		float[] hr = focus != null ? rects.get(focus) : null;
+		toolbarFaded = hr != null && hr[0] - 3 < toolbar[0] + toolbar[2] && hr[0] + hr[2] + 3 > toolbar[0]
+			&& hr[1] - 3 < toolbar[1] + toolbar[3] && hr[1] + hr[3] + 3 > toolbar[1];
+		toolbarAlpha.set(toolbarFaded ? 0.15f : 1, now, 160, Ease.EASE);
+		c.push();
+		c.mulAlpha(toolbarAlpha.get(now));
 		drawToolbar(c, text, sw, mdx, mdy, anyEnabled);
+		c.pop();
 		c.pop();
 		c.flush(g);
 		text.setGraphics(null);
-		boolean overButton = inside(resetBtn, mdx, mdy) || inside(doneBtn, mdx, mdy);
-		if (dragging != null) g.requestCursor(CursorTypes.RESIZE_ALL);
+		boolean overButton = !toolbarFaded && (inside(resetBtn, mdx, mdy) || inside(doneBtn, mdx, mdy));
+		if (dragging != null || resizing != null) g.requestCursor(CursorTypes.RESIZE_ALL);
+		else if (handleAt(mdx, mdy) != null) g.requestCursor(CursorTypes.CROSSHAIR);
 		else if (hovered != null) g.requestCursor(CursorTypes.RESIZE_ALL);
 		else if (overButton) g.requestCursor(CursorTypes.POINTING_HAND);
+	}
+
+	/** The topmost overlay under a design-space point, or null. */
+	private @Nullable Overlay overlayAt(float mdx, float mdy) {
+		Overlay found = null;
+		for (Overlay o : Hud.ALL) {
+			float[] r = rects.get(o);
+			if (r != null && mdx >= r[0] - 3 && mdx < r[0] + r[2] + 3 && mdy >= r[1] - 3 && mdy < r[1] + r[3] + 3) found = o;
+		}
+		return found;
+	}
+
+	/** The overlay whose resize handle is under the mouse, or null. */
+	private @Nullable Overlay handleAt(float mdx, float mdy) {
+		for (Map.Entry<Overlay, float[]> e : rects.entrySet()) {
+			float[] r = e.getValue();
+			float hx = r[0] + r[2] + 3, hy = r[1] + r[3] + 3;
+			if (Math.abs(mdx - hx) <= HANDLE && Math.abs(mdy - hy) <= HANDLE) return e.getKey();
+		}
+		return null;
+	}
+
+	/** Changes an overlay's size while keeping its top-left corner where it is. */
+	private void resize(Overlay o, float[] rect, float newScale) {
+		float bw = rect[2] / o.scale, bh = rect[3] / o.scale;
+		o.setScale(newScale);
+		Hud.place(o, rect[0], rect[1], bw * o.scale, bh * o.scale);
 	}
 
 	private static boolean inside(float[] r, float x, float y) {
@@ -126,10 +173,11 @@ public class HudEditorScreen extends Screen {
 
 	private void drawToolbar(Canvas c, TextRenderer text, float sw, float mdx, float mdy, boolean anyEnabled) {
 		String title = "Modify HUD";
-		String hint = anyEnabled ? "Drag to move · Right-click to hide" : "No overlays enabled. Turn some on in Overlays.";
+		String hint = anyEnabled ? "Drag to move · Scroll or drag the corner to resize · Right-click to hide" : "No overlays enabled. Turn some on in Overlays.";
 		float resetW = 24 + text.width("Reset", BUTTON), doneW = 24 + text.width("Done", BUTTON);
 		float w = 14 + 16 + 10 + text.width(title, TITLE) + 14 + text.width(hint, HINT) + 18 + resetW + 6 + doneW + 7;
 		float h = 44, x = sw / 2 - w / 2, y = 18;
+		toolbar = new float[] {x, y, w, h};
 		c.boxShadow(x, y, w, h, 14, 0, 12, 16, Colors.black(0.35f));
 		c.fillRoundRect(x, y, w, h, 14, Colors.glass(0.82f));
 		c.borderRoundRect(x, y, w, h, 14, 1, Colors.white(0.1f));
@@ -181,13 +229,25 @@ public class HudEditorScreen extends Screen {
 		mouseX = event.x();
 		mouseY = event.y();
 		float mdx = (float) (mouseX / s()), mdy = (float) (mouseY / s());
-		if (event.button() == 0 && inside(doneBtn, mdx, mdy)) {
+		if (event.button() == 0 && !toolbarFaded && inside(doneBtn, mdx, mdy)) {
 			onClose();
 			return true;
 		}
-		if (event.button() == 0 && inside(resetBtn, mdx, mdy)) {
+		if (event.button() == 0 && !toolbarFaded && inside(resetBtn, mdx, mdy)) {
 			for (Overlay o : Hud.ALL) o.resetPosition();
 			LeoneConfig.save();
+			return true;
+		}
+		Overlay handle = event.button() == 0 ? handleAt(mdx, mdy) : null;
+		if (handle != null) {
+			float[] r = rects.get(handle);
+			resizing = handle;
+			anchorX = r[0];
+			anchorY = r[1];
+			baseW = r[2] / handle.scale;
+			baseH = r[3] / handle.scale;
+			startScale = handle.scale;
+			startDist = Math.max(4, (float) Math.hypot(mdx - r[0], mdy - r[1]));
 			return true;
 		}
 		List<Overlay> order = new ArrayList<>(rects.keySet());
@@ -213,6 +273,13 @@ public class HudEditorScreen extends Screen {
 	public boolean mouseDragged(MouseButtonEvent event, double dx, double dy) {
 		mouseX = event.x();
 		mouseY = event.y();
+		if (resizing != null) {
+			float mdx = (float) (mouseX / s()), mdy = (float) (mouseY / s());
+			float dist = (float) Math.hypot(mdx - anchorX, mdy - anchorY);
+			resizing.setScale(startScale * dist / startDist);
+			Hud.place(resizing, anchorX, anchorY, baseW * resizing.scale, baseH * resizing.scale);
+			return true;
+		}
 		if (dragging == null) return false;
 		float[] r = rects.get(dragging);
 		if (r == null) return true;
@@ -235,11 +302,29 @@ public class HudEditorScreen extends Screen {
 
 	@Override
 	public boolean mouseReleased(MouseButtonEvent event) {
+		if (resizing != null) {
+			resizing = null;
+			LeoneConfig.save();
+			return true;
+		}
 		if (dragging != null) {
 			dragging = null;
 			snapCenterX = snapCenterY = false;
 			LeoneConfig.save();
 		}
+		return true;
+	}
+
+	@Override
+	public boolean mouseScrolled(double x, double y, double scrollX, double scrollY) {
+		mouseX = x;
+		mouseY = y;
+		Overlay o = overlayAt((float) (x / s()), (float) (y / s()));
+		if (o == null || scrollY == 0 || dragging != null || resizing != null) return false;
+		float[] r = rects.get(o);
+		if (r == null) return false;
+		resize(o, r, o.scale + (scrollY > 0 ? 0.1f : -0.1f));
+		LeoneConfig.save();
 		return true;
 	}
 

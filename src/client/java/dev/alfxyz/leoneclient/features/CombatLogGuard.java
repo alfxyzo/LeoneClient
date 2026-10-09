@@ -17,7 +17,7 @@ public final class CombatLogGuard extends Module {
 
 	public CombatLogGuard() {
 		super("combat_log_guard", Category.COMBAT, "Combat Log Guard", Icons.SHIELD,
-			"Asks before you disconnect while combat tagged, because logging out in combat kills you and drops your items.", true);
+			"Asks before you disconnect while combat tagged, because logging out in combat kills you and drops your items.", false);
 	}
 
 	/**

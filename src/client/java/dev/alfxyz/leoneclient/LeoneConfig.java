@@ -85,7 +85,6 @@ public final class LeoneConfig {
 				if (o.has("enabled")) m.setEnabled(o.get("enabled").getAsBoolean());
 				if (o.has("visible")) m.visible = o.get("visible").getAsBoolean();
 				if (o.has("bind")) m.bind = o.get("bind").getAsInt();
-				if (o.has("bindMode")) m.bindMode = Module.BindMode.valueOf(o.get("bindMode").getAsString().toUpperCase(Locale.ROOT));
 			} catch (RuntimeException e) {
 				LOGGER.warn("Leone Client: bad saved state for {}", m.key(), e);
 			}
@@ -182,7 +181,6 @@ public final class LeoneConfig {
 			o.addProperty("enabled", m.enabled());
 			o.addProperty("visible", m.visible);
 			o.addProperty("bind", m.bind);
-			o.addProperty("bindMode", m.bindMode.name().toLowerCase(Locale.ROOT));
 			if (!m.settings.isEmpty()) {
 				JsonObject settings = new JsonObject();
 				for (Setting s : m.settings) settings.add(s.id, s.save());

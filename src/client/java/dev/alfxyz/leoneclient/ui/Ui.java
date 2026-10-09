@@ -10,6 +10,7 @@ import dev.alfxyz.leoneclient.render.TextRenderer.Style;
 import dev.alfxyz.leoneclient.render.TextRenderer.Weight;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.jspecify.annotations.Nullable;
@@ -269,8 +270,40 @@ public final class Ui {
 
 	// ------------------------------------------------------------ text layout
 
-	/** Breaks {@code s} into lines no wider than {@code maxW}; the last allowed line ends in an ellipsis if cut. */
+	private record Wrapped(List<String> lines, boolean cut) {
+	}
+
+	private final Map<String, List<String>> wrapCache = new LinkedHashMap<>(256, 0.75f, true) {
+		@Override
+		protected boolean removeEldestEntry(Map.Entry<String, List<String>> eldest) {
+			return size() > 512;
+		}
+	};
+
+	/**
+	 * Breaks {@code s} into lines no wider than {@code maxW}, balanced so the lines are of similar
+	 * length (no single word left on the last line). The last allowed line ends in an ellipsis if cut.
+	 */
 	public List<String> wrap(String s, Style st, float maxW, int maxLines) {
+		String key = s + '|' + st + '|' + maxW + '|' + maxLines + (text.vanilla() ? "v" : "s");
+		List<String> cached = wrapCache.get(key);
+		if (cached != null) return cached;
+		Wrapped w = greedy(s, st, maxW, maxLines);
+		if (w.lines().size() >= 2 && !w.cut()) {
+			float lo = maxW * 0.4f, hi = maxW;
+			for (int i = 0; i < 8; i++) {
+				float mid = (lo + hi) / 2;
+				Wrapped t = greedy(s, st, mid, maxLines);
+				if (t.lines().size() == w.lines().size() && !t.cut()) hi = mid;
+				else lo = mid;
+			}
+			w = greedy(s, st, hi, maxLines);
+		}
+		wrapCache.put(key, w.lines());
+		return w.lines();
+	}
+
+	private Wrapped greedy(String s, Style st, float maxW, int maxLines) {
 		List<String> lines = new ArrayList<>();
 		String[] words = s.split(" ");
 		StringBuilder line = new StringBuilder();
@@ -285,14 +318,19 @@ public final class Ui {
 				StringBuilder rest = new StringBuilder(line);
 				for (int j = i; j < words.length; j++) rest.append(' ').append(words[j]);
 				lines.add(text.fit(rest.toString(), st, maxW));
-				return lines;
+				return new Wrapped(lines, true);
 			}
 			lines.add(line.toString());
 			line.setLength(0);
 			line.append(words[i]);
 		}
-		if (!line.isEmpty()) lines.add(text.fit(line.toString(), st, maxW));
-		return lines;
+		boolean cut = false;
+		if (!line.isEmpty()) {
+			String last = line.toString(), fitted = text.fit(last, st, maxW);
+			cut = !fitted.equals(last);
+			lines.add(fitted);
+		}
+		return new Wrapped(lines, cut);
 	}
 
 	/** Draws wrapped text from the top of its first line; returns the height used. */

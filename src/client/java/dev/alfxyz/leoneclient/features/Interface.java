@@ -24,7 +24,7 @@ public final class Interface extends Module {
 		"Shows a notification when a keybind turns a module on or off.");
 
 	public Interface() {
-		super("interface", Category.CLIENT, "Interface", Icons.PALETTE, "Colours, font and feel of the menu. The key that opens it (Right Shift at first) is under Leone Client in Controls.", true);
+		super("interface", Category.CLIENT, "Interface", Icons.PALETTE, "Colours, font and feel of the menu. The key that opens it (Right Shift at first) is under Leone Client in Controls.", false);
 	}
 
 	@Override

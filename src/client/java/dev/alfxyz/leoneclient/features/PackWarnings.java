@@ -11,7 +11,7 @@ public final class PackWarnings extends Module {
 
 	public PackWarnings() {
 		super("pack_warnings", Category.HUD, "Pack Warnings", Icons.EYE_OFF,
-			"Hides the resource pack titles and reminders LeoneMC shows when you decline its pack.", true);
+			"Hides the resource pack titles and reminders LeoneMC shows when you decline its pack.", false);
 	}
 
 	@Override

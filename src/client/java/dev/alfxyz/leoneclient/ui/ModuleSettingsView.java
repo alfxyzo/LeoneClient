@@ -182,27 +182,26 @@ final class ModuleSettingsView {
 		ui.cv.fillRect(x + 1, r0 + 48, x + w - 1, r0 + 49, Colors.white(0.07f));
 
 		float r1 = r0 + 49;
-		ui.text.draw(ui.cv, "Bind", x + 15, ui.text.baselineFor(Ui.BODY, r1 + 24), Ui.BODY, Colors.TEXT);
-		ui.tip(x, r1 + 4, 60, 40, "A key that switches the module in game. Toggle flips it on each press; Hold keeps it on while the key is held. Right-click the key to clear it.");
-		float tgW = 8 + ui.text.width("Toggle", Ui.SEGMENT) + 8, hdW = 8 + ui.text.width("Hold", Ui.SEGMENT) + 8;
-		float segW = 2 + tgW + 2 + hdW + 2;
-		float segX = right - segW, segY = r1 + 10;
-		ui.cv.fillRoundRect(segX, segY, segW, 28, 8, Colors.white(0.06f));
-		boolean toggle = m.bindMode == Module.BindMode.TOGGLE;
-		if (toggle) ui.cv.fillRoundRect(segX + 2, segY + 2, tgW, 24, 6, Colors.white(0.14f));
-		else ui.cv.fillRoundRect(segX + 2 + tgW + 2, segY + 2, hdW, 24, 6, Colors.white(0.14f));
-		ui.text.draw(ui.cv, "Toggle", segX + 2 + 8, ui.text.baselineFor(Ui.SEGMENT, segY + 14), Ui.SEGMENT, toggle ? Colors.WHITE : Colors.TEXT_MUTED);
-		ui.text.draw(ui.cv, "Hold", segX + 2 + tgW + 2 + 8, ui.text.baselineFor(Ui.SEGMENT, segY + 14), Ui.SEGMENT, toggle ? Colors.TEXT_MUTED : Colors.WHITE);
-		ui.hit(segX + 2, segY + 2, tgW, 24, () -> m.bindMode = Module.BindMode.TOGGLE, null);
-		ui.hit(segX + 2 + tgW + 2, segY + 2, hdW, 24, () -> m.bindMode = Module.BindMode.HOLD, null);
+		ui.text.draw(ui.cv, "Keybind", x + 15, ui.text.baselineFor(Ui.BODY, r1 + 24), Ui.BODY, Colors.TEXT);
+		ui.tip(x, r1 + 4, 80, 40, "A key that switches " + m.name + " on or off while you play. Click the button, then press the key. Escape cancels.");
+		float segY = r1 + 10;
+		float bxRight = right;
+		if (m.bind >= 0) {
+			ui.iconButton(m.key() + "#unbind", right - 28, segY, 28, Icons.CLOSE, 13, Colors.TEXT_MUTED, 0xFFFF8A8A, () -> {
+				m.bind = -1;
+				screen.setBinding(null);
+			});
+			ui.tip(right - 28, segY, 28, 28, "Remove the keybind");
+			bxRight = right - 28 - 6;
+		}
 		boolean capturing = screen.binding() == m;
-		String bindLabel = capturing ? "Press a key…" : m.bind >= 0 ? keyName(m.bind) : "Click to bind";
-		float bW = 1 + 10 + ui.text.width(bindLabel, Ui.BUTTON) + 10 + 1;
-		float bX = segX - 6 - bW;
+		String bindLabel = capturing ? "Press a key…" : m.bind >= 0 ? keyName(m.bind) : "Set a key";
+		float bW = Math.max(84, 1 + 12 + ui.text.width(bindLabel, Ui.BUTTON) + 12 + 1);
+		float bX = bxRight - bW;
 		boolean bHov = ui.hovered(bX, segY, bW, 28);
 		ui.cv.fillRoundRect(bX, segY, bW, 28, 7, capturing ? Colors.accent(0.2f) : Colors.white(bHov ? 0.09f : 0.06f));
 		ui.cv.borderRoundRect(bX, segY, bW, 28, 7, 1, capturing ? Colors.accent(0.6f) : Colors.white(0.1f));
-		ui.text.draw(ui.cv, bindLabel, bX + 11, ui.text.baselineFor(Ui.BUTTON, segY + 14), Ui.BUTTON, Colors.TEXT);
+		ui.centred(bindLabel, Ui.BUTTON, bX, segY, bW, 28, capturing || m.bind >= 0 ? Colors.WHITE : Colors.TEXT_MUTED);
 		ui.hit(bX, segY, bW, 28, () -> screen.setBinding(capturing ? null : m), () -> {
 			m.bind = -1;
 			screen.setBinding(null);

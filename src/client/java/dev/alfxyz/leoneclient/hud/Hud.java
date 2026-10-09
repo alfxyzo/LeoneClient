@@ -135,9 +135,10 @@ public final class Hud {
 		return new float[] {(gw - w) / s, 0, gw / s, bottom / s};
 	}
 
-	/** Draws one overlay at its stored position; returns its rect {x, y, w, h}. */
+	/** Draws one overlay at its stored position and size; returns its rect {x, y, w, h}. */
 	public static float[] drawAt(Overlay.Context ctx, Overlay o) {
-		float w = o.width(ctx), h = o.height(ctx);
+		float sc = o.scale;
+		float w = o.width(ctx) * sc, h = o.height(ctx) * sc;
 		float[] p = position(o, w, h);
 		if (o.ay == Overlay.START) {
 			// keep top-anchored overlays clear of the status effect icons
@@ -145,7 +146,13 @@ public final class Hud {
 			if (fx != null && p[0] < fx[2] && p[0] + w > fx[0] && p[1] < fx[3]) p[1] = Math.min(900 - h, fx[3] + 6);
 		}
 		ctx.alignEnd = o.ax == Overlay.END;
-		if (w > 0 && h > 0) o.draw(ctx, p[0], p[1], w, h);
+		if (w > 0 && h > 0) {
+			ctx.cv.push();
+			ctx.cv.translate(p[0], p[1]);
+			ctx.cv.scale(sc);
+			o.draw(ctx, 0, 0, w / sc, h / sc);
+			ctx.cv.pop();
+		}
 		return new float[] {p[0], p[1], w, h};
 	}
 

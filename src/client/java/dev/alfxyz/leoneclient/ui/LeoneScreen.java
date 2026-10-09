@@ -39,7 +39,7 @@ import org.lwjgl.glfw.GLFW;
  */
 public class LeoneScreen extends Screen {
 	/** What the side panel shows. */
-	public enum Kind { CATEGORY, SEARCH, SERVERS, FRIENDS, CONFIGS, OVERLAYS }
+	public enum Kind { CATEGORY, SEARCH, SERVERS, FRIENDS, PLAYERS, CONFIGS, OVERLAYS }
 
 	private static @Nullable LeoneScreen active;
 	private static Canvas sharedCanvas;
@@ -78,9 +78,13 @@ public class LeoneScreen extends Screen {
 	private final Anim pointer = new Anim(0);
 	private final Anim pointerOpacity = new Anim(0);
 	private final Anim arcOpacity = new Anim(0);
-	private final ColorAnim[] segFill = new ColorAnim[6];
-	private final ColorAnim[] segLabel = new ColorAnim[6];
-	private final Anim[] segScale = new Anim[6];
+	/** The wheel's categories (the Staff category only for LeoneMC staff), and the angle each segment covers. */
+	private final List<Category> cats = Category.shown();
+	private final int segs = cats.size();
+	private final float seg = 360f / segs;
+	private final ColorAnim[] segFill = new ColorAnim[segs];
+	private final ColorAnim[] segLabel = new ColorAnim[segs];
+	private final Anim[] segScale = new Anim[segs];
 	private final ColorAnim hubBorder = new ColorAnim(Colors.white(0.12f));
 	private final ColorAnim hubGlow = new ColorAnim(Colors.white(0.05f));
 	private final Anim logoScale = new Anim(1);
@@ -95,9 +99,10 @@ public class LeoneScreen extends Screen {
 	private double mouseX, mouseY;
 
 	private final Ui ui;
-	private final CategoryPage[] categoryPages = new CategoryPage[6];
+	private final CategoryPage[] categoryPages = new CategoryPage[segs];
 	private final SearchPage search = new SearchPage(this);
 	private final ServersPage servers = new ServersPage(this);
+	private final PlayersPage players = new PlayersPage(this);
 	private final ConfigsPage configs = new ConfigsPage(this);
 	private final FriendsPage friends = new FriendsPage(this);
 	private final OverlaysPage overlays = new OverlaysPage(this);
@@ -123,11 +128,11 @@ public class LeoneScreen extends Screen {
 		super(Component.literal("Leone Client"));
 		this.parent = parent;
 		this.initialKind = initial;
-		for (int i = 0; i < 6; i++) {
+		for (int i = 0; i < segs; i++) {
 			segFill[i] = new ColorAnim(Colors.glass(0.66f));
 			segLabel[i] = new ColorAnim(Colors.TEXT_DOCK);
 			segScale[i] = new Anim(1);
-			categoryPages[i] = new CategoryPage(this, Category.values()[i]);
+			categoryPages[i] = new CategoryPage(this, cats.get(i));
 		}
 		Gfx.ensure();
 		if (sharedCanvas == null) sharedCanvas = Gfx.newCanvas();
@@ -387,7 +392,7 @@ public class LeoneScreen extends Screen {
 	private void setHoverCat(int i, double now) {
 		if (i == hoverCat) return;
 		if (i >= 0) {
-			pointerTarget = turn(pointerTarget, i * 60);
+			pointerTarget = turn(pointerTarget, i * seg);
 			pointer.set(pointerTarget, now, 280, Ease.SNAP);
 			if (Modules.INTERFACE.sounds.get()) {
 				Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK.value(), 1.0F, 0.12F));
@@ -398,7 +403,7 @@ public class LeoneScreen extends Screen {
 
 	private void updateWheelStyles(double now) {
 		int selected = selectedSegment();
-		for (int i = 0; i < 6; i++) {
+		for (int i = 0; i < segs; i++) {
 			boolean hov = hoverCat == i;
 			boolean sel = selected == i;
 			boolean dimmed = panelOpen && !sel;
@@ -427,7 +432,7 @@ public class LeoneScreen extends Screen {
 			int hc = -1;
 			if (dist >= R_IN && dist <= R_OUT) {
 				double ang = Math.toDegrees(Math.atan2(dy, dx)) - rot;
-				hc = Math.floorMod((int) Math.round((ang + 90) / 60.0), 6);
+				hc = Math.floorMod((int) Math.round((ang + 90) / seg), segs);
 			}
 			setHoverCat(hc, now);
 			hubHover = dist <= R_HUB;
@@ -444,13 +449,13 @@ public class LeoneScreen extends Screen {
 		if (ringFade > 0) cv.ring(CX, CY, 301, 302, Colors.white(0.07f * ringFade));
 
 		int n = 48;
-		float[][] ox = new float[6][n], oy = new float[6][n], ix = new float[6][n], iy = new float[6][n];
+		float[][] ox = new float[segs][n], oy = new float[segs][n], ix = new float[segs][n], iy = new float[segs][n];
 		float dO = (float) Math.toDegrees(3 / R_OUT), dI = (float) Math.toDegrees(3 / R_IN);
-		for (int i = 0; i < 6; i++) {
-			float mid = -90 + i * 60;
+		for (int i = 0; i < segs; i++) {
+			float mid = -90 + i * seg;
 			for (int j = 0; j < n; j++) {
 				float t = j / (n - 1f);
-				double ao = Math.toRadians(mid - 30 + dO + (60 - 2 * dO) * t), ai = Math.toRadians(mid - 30 + dI + (60 - 2 * dI) * t);
+				double ao = Math.toRadians(mid - seg / 2 + dO + (seg - 2 * dO) * t), ai = Math.toRadians(mid - seg / 2 + dI + (seg - 2 * dI) * t);
 				ox[i][j] = CX + (float) Math.cos(ao) * R_OUT;
 				oy[i][j] = CY + (float) Math.sin(ao) * R_OUT;
 				ix[i][j] = CX + (float) Math.cos(ai) * R_IN;
@@ -458,10 +463,9 @@ public class LeoneScreen extends Screen {
 			}
 		}
 
-		Category[] cats = Category.values();
 		TextRenderer text = ui.text;
-		for (int i = 0; i < 6; i++) {
-			float p = Ease.progress(now, openedAt, 150 + 55 * i, 560, Ease.SNAP);
+		for (int i = 0; i < segs; i++) {
+			float p = Ease.progress(now, openedAt, 150 + 330f / segs * i, 560, Ease.SNAP);
 			if (p <= 0) continue;
 			cv.push();
 			cv.rotateAround(rot - 34 * (1 - p), CX, CY);
@@ -469,18 +473,18 @@ public class LeoneScreen extends Screen {
 			cv.mulAlpha(p);
 			cv.fillStrip(ox[i], oy[i], ix[i], iy[i], n, segFill[i].get(now));
 
-			double mid = Math.toRadians(-90 + i * 60);
+			double mid = Math.toRadians(-90 + i * seg);
 			float lx = CX + (float) Math.cos(mid) * R_LABEL, ly = CY + (float) Math.sin(mid) * R_LABEL;
 			cv.push();
 			cv.translate(lx, ly);
 			cv.rotate(-rot);
 			cv.scale(segScale[i].get(now));
 			int col = segLabel[i].get(now);
-			String count = onCount(cats[i]);
+			String count = onCount(cats.get(i));
 			float blockH = 26 + 7 + text.lineHeight(Ui.LABEL) + 2 + text.lineHeight(Ui.SMALL);
 			float top = -blockH / 2;
-			ui.icons.draw(cv, cats[i].icon, -13, top, 26, 1.7f, col);
-			String name = cats[i].displayName;
+			ui.icons.draw(cv, cats.get(i).icon, -13, top, 26, 1.7f, col);
+			String name = cats.get(i).displayName;
 			text.draw(cv, name, -text.width(name, Ui.LABEL) / 2, top + 33 + text.ascent(Ui.LABEL), Ui.LABEL, col);
 			float cy = top + 33 + text.lineHeight(Ui.LABEL) + 2;
 			text.draw(cv, count, -text.width(count, Ui.SMALL) / 2, cy + text.ascent(Ui.SMALL), Ui.SMALL, Colors.alpha(col, 0.62f));
@@ -493,7 +497,7 @@ public class LeoneScreen extends Screen {
 			cv.push();
 			cv.rotateAround(rot, CX, CY);
 			cv.mulAlpha(svgFade);
-			for (int i = 0; i < 6; i++) {
+			for (int i = 0; i < segs; i++) {
 				float[] lx = new float[n * 2], ly = new float[n * 2];
 				for (int j = 0; j < n; j++) {
 					lx[j] = ox[i][j];
@@ -508,12 +512,12 @@ public class LeoneScreen extends Screen {
 			if (selected >= 0) lastArc = selected;
 			else if (hoverCat >= 0) lastArc = hoverCat;
 			if (ao > 0) {
-				float mid = -90 + lastArc * 60;
+				float mid = -90 + lastArc * seg;
 				float d = (float) Math.toDegrees(3 / R_ARC) + 1.5f;
 				cv.push();
 				cv.mulAlpha(ao);
-				cv.arcGlow(CX, CY, R_ARC, 3, mid - 30 + d, mid + 30 - d, 3, Colors.accent(0.7f));
-				cv.arc(CX, CY, R_ARC, 3, mid - 30 + d, mid + 30 - d, Colors.ACCENT);
+				cv.arcGlow(CX, CY, R_ARC, 3, mid - seg / 2 + d, mid + seg / 2 - d, 3, Colors.accent(0.7f));
+				cv.arc(CX, CY, R_ARC, 3, mid - seg / 2 + d, mid + seg / 2 - d, Colors.ACCENT);
 				cv.pop();
 			}
 			cv.pop();
@@ -593,6 +597,7 @@ public class LeoneScreen extends Screen {
 			case CATEGORY -> categoryPages[cat];
 			case SEARCH -> search;
 			case SERVERS -> servers;
+			case PLAYERS -> players;
 			case CONFIGS -> configs;
 			case FRIENDS -> friends;
 			case OVERLAYS -> overlays;
@@ -651,6 +656,7 @@ public class LeoneScreen extends Screen {
 		SEARCH(null, Icons.SEARCH, Kind.SEARCH),
 		SERVERS("Servers", Icons.SERVER, Kind.SERVERS),
 		FRIENDS("Friends", Icons.FRIENDS, Kind.FRIENDS),
+		PLAYERS("Players", Icons.USER, Kind.PLAYERS),
 		CONFIGS("Configs", Icons.CONFIGS, Kind.CONFIGS),
 		OVERLAYS("Overlays", Icons.OVERLAYS, Kind.OVERLAYS),
 		HUD("Modify HUD", Icons.HUD, null);
@@ -767,7 +773,7 @@ public class LeoneScreen extends Screen {
 		}
 		if (k == Kind.CATEGORY) {
 			if (!wasCategory) connectorAt = now;
-			ringTarget = turn(ringTarget, 90 - 60 * cat);
+			ringTarget = turn(ringTarget, 90 - seg * cat);
 		} else {
 			ringTarget = turn(ringTarget, 0);
 		}
@@ -797,6 +803,24 @@ public class LeoneScreen extends Screen {
 
 	void toggle(Module m) {
 		m.toggle();
+	}
+
+	/** Shows a player's profile on the Players page. */
+	void openPlayer(java.util.UUID uuid, String name) {
+		openPage(Kind.PLAYERS, 0);
+		players.show(uuid, name);
+	}
+
+	/** Opens the menu straight onto a player's profile (the /leone profile command). */
+	public static LeoneScreen forPlayer(java.util.UUID uuid, String name) {
+		LeoneScreen s = new LeoneScreen(Kind.PLAYERS);
+		s.players.show(uuid, name);
+		return s;
+	}
+
+	/** Index of a category on this wheel, or -1 when it is not shown. */
+	public int segmentOf(Category c) {
+		return cats.indexOf(c);
 	}
 
 	void openSettings(Module m) {
@@ -847,7 +871,7 @@ public class LeoneScreen extends Screen {
 	/** Centre of a segment's label, at the wheel's resting transform for the current state. */
 	public float[] debugSegment(int i) {
 		float gx = groupX.target(), gs = groupScale.target(), rot = ringRot.target();
-		double a = Math.toRadians(-90 + i * 60 + rot);
+		double a = Math.toRadians(-90 + i * seg + rot);
 		return designToGui(CX + gx + (float) Math.cos(a) * R_LABEL * gs, CY + (float) Math.sin(a) * R_LABEL * gs);
 	}
 
@@ -873,7 +897,7 @@ public class LeoneScreen extends Screen {
 		return designToGui(PANEL_X + 1 + PANEL_PAD + 19, top + 1 + PANEL_PAD + 19);
 	}
 
-	/** Centre of a dock item: 0 search, 1 servers, 2 friends, 3 configs, 4 overlays, 5 modify HUD. */
+	/** Centre of a dock item: 0 search, 1 servers, 2 friends, 3 players, 4 configs, 5 overlays, 6 modify HUD. */
 	public float[] debugDock(int i) {
 		TextRenderer text = ui.text;
 		DockItem[] items = DockItem.values();
@@ -947,7 +971,7 @@ public class LeoneScreen extends Screen {
 			else startClose();
 		} else if (dist >= R_IN && dist <= R_OUT) {
 			double ang = Math.toDegrees(Math.atan2(wy - CY, wx - CX)) - ringRot.get(now);
-			openPage(Kind.CATEGORY, Math.floorMod((int) Math.round((ang + 90) / 60.0), 6));
+			openPage(Kind.CATEGORY, Math.floorMod((int) Math.round((ang + 90) / seg), segs));
 		}
 		return true;
 	}

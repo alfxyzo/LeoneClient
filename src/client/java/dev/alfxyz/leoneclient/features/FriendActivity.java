@@ -41,7 +41,7 @@ public final class FriendActivity extends Module {
 
 	public FriendActivity() {
 		super("friend_activity", Category.FRIENDS, "Friend Activity", Icons.FRIENDS,
-			"Tidies LeoneMC's friend join and leave messages, and keeps track of where your friends are for the Friends and Servers pages.", true);
+			"Tidies LeoneMC's friend join and leave messages, and keeps track of where your friends are for the Friends and Servers pages.", false);
 	}
 
 	@Override

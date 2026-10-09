@@ -7,6 +7,8 @@ import dev.alfxyz.leoneclient.anim.Ease;
 import dev.alfxyz.leoneclient.hud.Hud;
 import dev.alfxyz.leoneclient.hud.Overlay;
 import dev.alfxyz.leoneclient.render.Icons;
+import java.util.ArrayList;
+import java.util.List;
 
 /** Turns HUD overlays on and off, and links to the HUD editor. */
 final class OverlaysPage extends Page {
@@ -16,9 +18,15 @@ final class OverlaysPage extends Page {
 		super(screen);
 	}
 
+	private static List<Overlay> overlays() {
+		List<Overlay> out = new ArrayList<>();
+		for (Overlay o : Hud.ALL) if (o.available()) out.add(o);
+		return out;
+	}
+
 	@Override
 	float height(Ui ui) {
-		int rows = (Hud.ALL.size() + 2) / 3;
+		int rows = (overlays().size() + 2) / 3;
 		return 38 + 18 + rows * TILE_H + (rows - 1) * GAP;
 	}
 
@@ -28,14 +36,15 @@ final class OverlaysPage extends Page {
 		float bw = ui.buttonWidth("Modify HUD", Icons.HUD, Ui.BUTTON);
 		ui.button("ov-edit", x + W - bw, y + 4, 30, "Modify HUD", Icons.HUD, Ui.Btn.GHOST, true, screen::openHudEditor);
 		int on = 0;
-		for (Overlay o : Hud.ALL) if (o.enabled()) on++;
-		String hint = on + " of " + Hud.ALL.size() + " on";
+		List<Overlay> list = overlays();
+		for (Overlay o : list) if (o.enabled()) on++;
+		String hint = on + " of " + list.size() + " on";
 		float hw = ui.text.width(hint, Ui.HINT);
 		ui.text.draw(ui.cv, hint, x + W - bw - 14 - hw, ui.text.baselineFor(Ui.HINT, y + 19), Ui.HINT, Colors.TEXT_HINT);
 
 		float gy = y + 38 + 18;
-		for (int i = 0; i < Hud.ALL.size(); i++) {
-			Overlay o = Hud.ALL.get(i);
+		for (int i = 0; i < list.size(); i++) {
+			Overlay o = list.get(i);
 			float tx = x + (i % 3) * (TILE_W + GAP), ty = gy + (i / 3) * (TILE_H + GAP);
 			ui.entering(ui.stagger(i), () -> tile(ui, o, tx, ty));
 		}

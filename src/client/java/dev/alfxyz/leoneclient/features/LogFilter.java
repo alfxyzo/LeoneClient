@@ -25,7 +25,7 @@ public final class LogFilter extends Module {
 
 	public LogFilter() {
 		super("log_filter", Category.CLIENT, "Log Filter", Icons.TERMINAL,
-			"Stops LeoneMC filling your game log with thousands of harmless warnings, which keeps it readable and small.", true);
+			"Stops LeoneMC filling your game log with thousands of harmless warnings, which keeps it readable and small.", false);
 	}
 
 	@Override

@@ -77,7 +77,7 @@ public final class Friends {
 
 	/** The player's name as LeoneMC shows it, which can differ from the Minecraft name. */
 	public static @Nullable String displayName() {
-		return profile != null && !customAccount() ? profile.name() : null;
+		return Account.name();
 	}
 
 	/** Shows another player's friends (or the logged-in player's when null) and fetches them. */
@@ -130,11 +130,43 @@ public final class Friends {
 		return byName(name) != null;
 	}
 
-	/** Online according to the latest chat message about them, or else the website. */
+	/** By UUID, for players the website shows, since two players can share a name there. */
+	public static boolean isFriend(UUID uuid) {
+		for (Friend f : list()) if (f.uuid().equals(uuid)) return true;
+		return false;
+	}
+
+	/** Online according to whichever is newest: their own profile page, a chat message about them, or the friends list. */
 	public static boolean online(Friend f) {
+		Profile p = Profiles.get(f.uuid());
 		Location l = location(f.name());
-		if (l != null && l.at() > updated) return l.online();
+		long listAt = updated;
+		if (p != null && p.fetched() >= listAt && (l == null || p.fetched() >= l.at())) return p.online();
+		if (l != null && l.at() > listAt) return l.online();
 		return f.online();
+	}
+
+	/** The server an online friend is on, if known: from their profile page or a recent chat message. */
+	public static @Nullable String server(Friend f) {
+		Profile p = Profiles.get(f.uuid());
+		Location l = location(f.name());
+		if (l != null && l.online() && (p == null || l.at() > p.fetched())) return l.server();
+		if (p != null && p.online()) return p.server();
+		return l != null && l.online() ? l.server() : null;
+	}
+
+	/** When an offline friend was last online (UTC ms), or 0 if unknown. */
+	public static long lastSeen(Friend f) {
+		Profile p = Profiles.get(f.uuid());
+		Location l = location(f.name());
+		long seen = p != null && !p.online() ? p.lastSeen() : 0;
+		if (l != null && !l.online()) seen = Math.max(seen, l.at());
+		return seen;
+	}
+
+	/** Keeps every friend's own profile fresh enough to show where they are or when they were last on. */
+	public static void wantPresence() {
+		for (Friend f : list()) Profiles.want(f.uuid(), online(f) ? 60_000 : 5 * 60_000);
 	}
 
 	/** Friends sorted online first, then by name. */
@@ -180,6 +212,9 @@ public final class Friends {
 			return;
 		}
 		profile = result.get();
+		Profiles.put(profile);
+		// show the account under the name the website uses, which can differ from the one typed
+		if (account != null && account.uuid().equals(profile.uuid()) && !profile.name().isEmpty()) account = new Player(account.uuid(), profile.name());
 		updated = System.currentTimeMillis();
 		state = State.READY;
 		save();
@@ -198,12 +233,12 @@ public final class Friends {
 		return l;
 	}
 
-	/** Names of friends last seen joining {@code server}. */
+	/** Friends currently on {@code server}. */
 	public static List<Friend> on(String server) {
 		List<Friend> out = new ArrayList<>();
 		for (Friend f : list()) {
-			Location l = location(f.name());
-			if (l != null && l.online() && l.server().equalsIgnoreCase(server)) out.add(f);
+			String at = online(f) ? server(f) : null;
+			if (at != null && at.equalsIgnoreCase(server)) out.add(f);
 		}
 		return out;
 	}
@@ -229,7 +264,7 @@ public final class Friends {
 					list.add(new Friend(UUID.fromString(f.get("uuid").getAsString()), f.get("name").getAsString(), f.get("color").getAsInt(), false, "Offline"));
 				}
 				profile = new Profile(UUID.fromString(pr.get("uuid").getAsString()), pr.get("name").getAsString(), pr.get("color").getAsInt(),
-					pr.get("rank").getAsString(), pr.get("rankColor").getAsInt(), list);
+					pr.get("rank").getAsString(), pr.get("rankColor").getAsInt(), list, false, null, 0, 0, 0, 0, List.of(), 0);
 				updated = pr.get("updated").getAsLong();
 				state = State.READY;
 			}

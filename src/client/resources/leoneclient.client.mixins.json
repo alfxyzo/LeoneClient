@@ -7,7 +7,18 @@
 		"ClientPacketListenerMixin",
 		"GameRendererMixin",
 		"HudMixin",
-		"MinecraftMixin"
+		"MinecraftMixin",
+		"TransferThreadMixin",
+		"staff.BakedSheetGlyphAccessor",
+		"staff.ChatDrawingBackgroundMixin",
+		"staff.ChatDrawingFocusedMixin",
+		"staff.CommandSuggestionsMixin",
+		"staff.EffectInstanceAccessor",
+		"staff.FontTextureMixin",
+		"staff.GlyphInstanceAccessor",
+		"staff.GuiMessageMixin",
+		"staff.SuggestionsListAccessor",
+		"staff.TooltipRenderUtilMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

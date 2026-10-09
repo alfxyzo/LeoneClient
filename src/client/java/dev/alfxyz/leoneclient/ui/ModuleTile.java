@@ -62,6 +62,6 @@ final class ModuleTile {
 	}
 
 	static List<Module> enabled() {
-		return Modules.all().stream().filter(m -> m.toggleable() && m.enabled()).toList();
+		return Modules.all().stream().filter(m -> m.toggleable() && m.enabled() && m.category.visible()).toList();
 	}
 }

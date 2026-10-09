@@ -70,7 +70,7 @@ final class ModuleCard {
 			String key = ModuleSettingsView.keyName(m.bind);
 			if (bx + ui.badgeWidth(key) <= right) ui.badge(key, bx, by, 0xFFFFFF, false);
 		}
-		String status = waiting ? "Waiting for LeoneMC" : on || !toggleable ? m.status() : null;
+		String status = waiting ? "Waiting for LeoneMC" : on || !toggleable ? m.status() : m.unavailable();
 		// the description runs under the switch; it gives up its last line to the status
 		float descRight = x + W - PAD - 22;
 		ui.paragraph(m.description, Ui.CARD_TEXT, tx, nameY + nameH + 3, descRight - tx, status != null ? 2 : 3, Colors.TEXT_HINT);

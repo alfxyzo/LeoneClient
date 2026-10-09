@@ -21,7 +21,7 @@ public final class CombatBar extends Module {
 
 	public CombatBar() {
 		super("combat_bar", Category.COMBAT, "Combat Bar", Icons.BARS,
-			"Puts the combat tag line on its own bar, so it stops replacing the action bar. Move it with Modify HUD.", true);
+			"Puts the combat tag line on its own bar, so it stops replacing the action bar. Move it with Modify HUD.", false);
 	}
 
 	/** True when the combat line is drawn as part of the action bar overlay. */
