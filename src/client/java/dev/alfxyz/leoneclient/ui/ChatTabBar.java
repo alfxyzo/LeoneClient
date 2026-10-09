@@ -37,7 +37,7 @@ import org.lwjgl.glfw.GLFW;
 /**
  * What Leone Client adds to the open chat: the Chat Tabs bar along the top of the chat, a note when the
  * chosen tab is empty, and a note above the input saying where typing goes when that could be mistaken
- * (staff chat switched on, or a tab like Staff or Messages that only filters what you read). With the
+ * (staff chat switched on, or a tab like Staff or Private that only filters what you read). With the
  * tab kept after closing chat, its name shows in the same place.
  */
 public final class ChatTabBar {
@@ -164,7 +164,7 @@ public final class ChatTabBar {
 
 	/**
 	 * Where typing goes, when it could be mistaken: into staff chat while LeoneMC's staff chat toggle is
-	 * on, or into public chat while a tab like Staff or Messages is showing. Not while typing a command.
+	 * on, or into public chat while a tab like Staff or Private is showing. Not while typing a command.
 	 */
 	private static @Nullable Note typingNote(String typing) {
 		if (typing.startsWith("/")) return null;

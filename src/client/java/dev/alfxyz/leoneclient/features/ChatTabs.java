@@ -42,7 +42,7 @@ public final class ChatTabs extends Module {
 	public enum Tab {
 		ALL("All", ~0, false, "Nothing in chat yet"),
 		CHAT("Chat", PLAYER, false, "Nobody has said anything yet"),
-		MESSAGES("Messages", PRIVATE, true, "No private messages yet"),
+		MESSAGES("Private", PRIVATE, true, "No private messages yet"),
 		MENTIONS("Mentions", MENTION, true, "Nobody has mentioned you yet"),
 		FRIENDS("Friends", FRIEND, true, "Nothing from your friends yet"),
 		STAFF("Staff", ChatTabs.STAFF, true, "No staff chat yet"),
@@ -86,8 +86,8 @@ public final class ChatTabs extends Module {
 	private static final int MAX_REPLY_LINES = 10;
 
 	public final Setting.Chips tabs = add(new Setting.Chips("tabs", "Tabs", "TABS",
-			List.of("Chat", "Messages", "Mentions", "Friends", "Server", "Custom"), List.of("Chat", "Messages", "Server")),
-		"The tabs after All. Chat: players talking in public chat. Messages: private messages to and from you. "
+			List.of("Chat", "Private", "Mentions", "Friends", "Server", "Custom"), List.of("Chat", "Private", "Server")).renamed("Messages", "Private"),
+		"The tabs after All. Chat: players talking in public chat. Private: private messages to and from you. "
 			+ "Mentions: lines where a player mentions you, and private messages sent to you. Friends: your LeoneMC friends talking, joining and leaving. "
 			+ "Server: everything the server says itself, such as broadcasts, events, kills and replies to commands. Custom: lines with your own words.");
 	public final Setting.Chips staffTabs = add(new Setting.Chips("staff_tabs", "Staff tabs", "TABS", List.of("Staff", "Alerts"), List.of("Staff", "Alerts")),

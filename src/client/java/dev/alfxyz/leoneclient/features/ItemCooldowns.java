@@ -69,7 +69,8 @@ public final class ItemCooldowns extends Module {
 		public final String id, name;
 		public final Item icon;
 		final Trigger trigger;
-		final Setting.Slider seconds;
+		/** ElytraBox's cooldown for the item, in ms. */
+		final long cooldown;
 		/** Words the server uses for it in its messages. */
 		final List<String> words;
 		final boolean quiet;
@@ -80,13 +81,13 @@ public final class ItemCooldowns extends Module {
 		long endsAt, length;
 		long readyAt;
 
-		Tracker(String id, String name, Item icon, Trigger trigger, Setting.Slider seconds, @Nullable Item item, @Nullable String customName,
+		Tracker(String id, String name, Item icon, Trigger trigger, long cooldown, @Nullable Item item, @Nullable String customName,
 				boolean knockback, boolean quiet, String... words) {
 			this.id = id;
 			this.name = name;
 			this.icon = icon;
 			this.trigger = trigger;
-			this.seconds = seconds;
+			this.cooldown = cooldown;
 			this.item = item;
 			this.customName = customName;
 			this.knockback = knockback;
@@ -134,8 +135,7 @@ public final class ItemCooldowns extends Module {
 
 		/** The server says how long is left: the timer shows exactly that. */
 		void sync(long ms) {
-			long full = Math.round(seconds.get() * 1000);
-			length = Math.max(Math.max(1, full), ms);
+			length = Math.max(cooldown, ms);
 			endsAt = System.currentTimeMillis() + ms;
 			readyAt = 0;
 		}
@@ -146,13 +146,8 @@ public final class ItemCooldowns extends Module {
 
 	public final Setting.Chips track = add(new Setting.Chips("track", "Track", "ITEMS", List.of("Cage", "Cobweb Circle", "Knockback"),
 			List.of("Cage", "Cobweb Circle", "Knockback")),
-		"Which items to time. Cage: the red glass Cage. Cobweb Circle: the bone meal that circles you with cobwebs. Knockback: any weapon with Knockback, timed from each hit.");
-	public final Setting.Slider cageSeconds = add(new Setting.Slider("cage_seconds", "Cage cooldown", "ITEMS", 10, 600, 5, 180, "%.0f s"),
-		"How long the Cage takes to be ready again. The server's own messages correct the timer whenever it reports the time left.");
-	public final Setting.Slider cobwebSeconds = add(new Setting.Slider("cobweb_seconds", "Cobweb Circle cooldown", "ITEMS", 10, 600, 5, 120, "%.0f s"),
-		"How long the Cobweb Circle takes to be ready again.");
-	public final Setting.Slider knockbackSeconds = add(new Setting.Slider("knockback_seconds", "Knockback cooldown", "ITEMS", 1, 30, 0.5f, 8, "%.1f s"),
-		"How long a Knockback weapon takes before it knocks back again.");
+		"Which items to time. Cage: the red glass Cage, 3 minutes. Cobweb Circle: the bone meal that circles you with cobwebs, 2 minutes. "
+			+ "Knockback: any weapon with Knockback, 8 seconds from each hit.");
 	public final Setting.Toggle onItem = add(new Setting.Toggle("on_item", "Countdown on the item", "SHOW", true),
 		"Shades the item in your hotbar and inventory as the cooldown runs, with the seconds left on top, like vanilla cooldowns.");
 	public final Setting.Toggle linger = add(new Setting.Toggle("linger", "Show Ready briefly", "SHOW", true),
@@ -163,9 +158,9 @@ public final class ItemCooldowns extends Module {
 		"Hides \"You cannot use cage item for another 12 seconds!\" and the like, since the panel shows it. The timers still use them.");
 
 	public final List<Tracker> trackers = List.of(
-		new Tracker("cage", "Cage", RED_GLASS, Trigger.USE, cageSeconds, RED_GLASS, "Cage", false, false, "cage item", "cage"),
-		new Tracker("cobweb_circle", "Cobweb Circle", Items.COBWEB, Trigger.USE, cobwebSeconds, Items.BONE_MEAL, "Cobweb Circle", false, false, "cobweb circle", "cobweb"),
-		new Tracker("knockback", "Knockback", Items.STICK, Trigger.ATTACK, knockbackSeconds, null, null, true, true, "knockback", "this"));
+		new Tracker("cage", "Cage", RED_GLASS, Trigger.USE, 180_000, RED_GLASS, "Cage", false, false, "cage item", "cage"),
+		new Tracker("cobweb_circle", "Cobweb Circle", Items.COBWEB, Trigger.USE, 120_000, Items.BONE_MEAL, "Cobweb Circle", false, false, "cobweb circle", "cobweb"),
+		new Tracker("knockback", "Knockback", Items.STICK, Trigger.ATTACK, 8_000, null, null, true, true, "knockback", "this"));
 
 	private final List<Pending> pending = new ArrayList<>();
 	private @Nullable Tracker lastUsed;
@@ -266,7 +261,7 @@ public final class ItemCooldowns extends Module {
 				it.remove();
 			} else if (--p.ticksLeft[0] <= 0) {
 				it.remove();
-				p.tracker.start(Math.round(p.tracker.seconds.get() * 1000));
+				p.tracker.start(p.tracker.cooldown);
 				dirty = true;
 			}
 		}

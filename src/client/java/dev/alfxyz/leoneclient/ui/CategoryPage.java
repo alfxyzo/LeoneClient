@@ -6,9 +6,9 @@ import dev.alfxyz.leoneclient.module.Modules;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
 
-/** A category's modules as cards. A LeoneMC server's category also says what the server is about. */
+/** A category's modules as cards. */
 final class CategoryPage extends Page {
-	private static final float ABOUT_GAP = 12, EMPTY_H = 64;
+	private static final float EMPTY_H = 64;
 	final Category category;
 
 	/** Recent alerts and reports, under the Staff modules. */
@@ -20,18 +20,13 @@ final class CategoryPage extends Page {
 		this.staff = category == Category.STAFF ? new StaffSection(screen) : null;
 	}
 
-	private float aboutHeight(Ui ui) {
-		if (category.about.isEmpty()) return 0;
-		return ABOUT_GAP + ui.wrap(category.about, Ui.DESC, W, 3).size() * ui.text.lineHeight(Ui.DESC);
-	}
-
 	private float gridHeight(List<Module> mods) {
 		return mods.isEmpty() && category.isServer() ? EMPTY_H : ModuleCard.gridHeight(mods.size());
 	}
 
 	@Override
 	float height(Ui ui) {
-		return 38 + aboutHeight(ui) + 18 + gridHeight(Modules.of(category)) + (staff != null ? staff.height(ui) : 0);
+		return 38 + 18 + gridHeight(Modules.of(category)) + (staff != null ? staff.height(ui) : 0);
 	}
 
 	@Override
@@ -51,10 +46,6 @@ final class CategoryPage extends Page {
 		float hw = ui.text.width(hint, Ui.HINT);
 		ui.text.draw(ui.cv, hint, x + W - cw - (cw > 0 ? 18 : 0) - hw, ui.text.baselineFor(Ui.HINT, y + 19), Ui.HINT, Colors.TEXT_HINT);
 		float gy = y + 38 + 18;
-		if (!category.about.isEmpty()) {
-			ui.paragraph(category.about, Ui.DESC, x + 2, y + 38 + ABOUT_GAP, W - 4, 3, Colors.TEXT_SECONDARY);
-			gy += aboutHeight(ui);
-		}
 		if (mods.isEmpty() && category.isServer()) {
 			float by = gy;
 			ui.entering(ui.stagger(0), () -> {

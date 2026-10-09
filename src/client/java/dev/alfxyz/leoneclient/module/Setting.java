@@ -135,6 +135,14 @@ public abstract sealed class Setting permits Setting.Toggle, Setting.Slider, Set
 			this.selected.addAll(selected);
 		}
 
+		/** Old names of options, so a renamed option stays selected in saved settings. */
+		private final java.util.Map<String, String> renames = new java.util.HashMap<>();
+
+		public Chips renamed(String from, String to) {
+			renames.put(from, to);
+			return this;
+		}
+
 		public boolean has(String option) {
 			return selected.contains(option);
 		}
@@ -160,7 +168,10 @@ public abstract sealed class Setting permits Setting.Toggle, Setting.Slider, Set
 		public void load(JsonElement json) {
 			if (!json.isJsonArray()) return;
 			selected.clear();
-			for (JsonElement e : json.getAsJsonArray()) if (options.contains(e.getAsString())) selected.add(e.getAsString());
+			for (JsonElement e : json.getAsJsonArray()) {
+				String option = renames.getOrDefault(e.getAsString(), e.getAsString());
+				if (options.contains(option)) selected.add(option);
+			}
 		}
 	}
 
