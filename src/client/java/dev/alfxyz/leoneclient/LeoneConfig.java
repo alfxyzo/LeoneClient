@@ -65,19 +65,29 @@ public final class LeoneConfig {
 		Path clientFile = dir().resolve("client.json");
 		boolean firstRun = !Files.isRegularFile(clientFile);
 		JsonObject client = read(clientFile);
+		// a damaged file costs that part of the setup, never the game: anything unreadable stays at its default
 		if (client != null) {
-			if (client.has("activeConfig")) activeConfig = client.get("activeConfig").getAsString();
-			if (client.has("overlays")) Hud.load(client.getAsJsonObject("overlays"));
+			try {
+				if (client.has("activeConfig")) activeConfig = client.get("activeConfig").getAsString();
+				if (client.has("overlays") && client.get("overlays").isJsonObject()) Hud.load(client.getAsJsonObject("overlays"));
+			} catch (RuntimeException e) {
+				LOGGER.warn("Leone Client: parts of {} could not be read", clientFile, e);
+			}
 		}
 		if (!isValidName(activeConfig)) activeConfig = "Main";
-		applyProfile(read(profileFile(activeConfig)));
+		try {
+			applyProfile(read(profileFile(activeConfig)));
+		} catch (RuntimeException e) {
+			LOGGER.warn("Leone Client: the {} config could not be read, so it starts from the defaults", activeConfig, e);
+			for (Module m : Modules.all()) m.reset();
+		}
 		if (firstRun) importLegacy();
 	}
 
 	private static void applyProfile(@Nullable JsonObject root) {
 		for (Module m : Modules.all()) m.reset();
 		if (root == null) return;
-		JsonObject mods = root.has("modules") ? root.getAsJsonObject("modules") : new JsonObject();
+		JsonObject mods = root.has("modules") && root.get("modules").isJsonObject() ? root.getAsJsonObject("modules") : new JsonObject();
 		for (Module m : Modules.all()) {
 			if (!mods.has(m.key()) || !mods.get(m.key()).isJsonObject()) continue;
 			JsonObject o = mods.getAsJsonObject(m.key());

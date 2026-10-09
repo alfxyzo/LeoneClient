@@ -34,7 +34,7 @@ import org.slf4j.Logger;
 public final class Friends {
 	private static final Logger LOGGER = LogUtils.getLogger();
 	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-	/** Profile pages count views, so the list is fetched sparingly. */
+	/** The list changes rarely, so it is fetched at most this often unless asked for. */
 	private static final long MIN_REFRESH_MS = 90_000;
 	private static final long LOCATION_TTL_MS = 6 * 3600_000L;
 
@@ -113,12 +113,14 @@ public final class Friends {
 		return updated;
 	}
 
+	/** The profile whose friends are shown; never a cached one from another account on this computer. */
 	public static @Nullable Profile profile() {
-		return profile;
+		return profile != null && profile.uuid().equals(accountUuid()) ? profile : null;
 	}
 
 	public static List<Friend> list() {
-		return profile == null ? List.of() : profile.friends();
+		Profile p = profile();
+		return p == null ? List.of() : p.friends();
 	}
 
 	public static @Nullable Friend byName(String name) {
@@ -186,7 +188,10 @@ public final class Friends {
 	public static void refresh(boolean force) {
 		if (state == State.LOADING) return;
 		long now = System.currentTimeMillis();
-		if (!force && (now - Math.max(updated, lastAttempt) < MIN_REFRESH_MS)) return;
+		// with nothing to show for this account yet, try again sooner (but not on every frame after a failure)
+		boolean have = profile() != null;
+		long since = now - (have ? Math.max(updated, lastAttempt) : lastAttempt);
+		if (!force && since < (have ? MIN_REFRESH_MS : 15_000)) return;
 		lastAttempt = now;
 		state = State.LOADING;
 		UUID uuid = accountUuid();
@@ -266,7 +271,7 @@ public final class Friends {
 				profile = new Profile(UUID.fromString(pr.get("uuid").getAsString()), pr.get("name").getAsString(), pr.get("color").getAsInt(),
 					pr.get("rank").getAsString(), pr.get("rankColor").getAsInt(), list, false, null, 0, 0, 0, 0, List.of(), 0);
 				updated = pr.get("updated").getAsLong();
-				state = State.READY;
+				state = profile() != null ? State.READY : State.IDLE;
 			}
 		} catch (Exception e) {
 			LOGGER.warn("Leone Client: could not read {}", p, e);

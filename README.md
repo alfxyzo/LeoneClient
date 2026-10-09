@@ -22,7 +22,7 @@ Every module starts switched off, so you only get what you turn on.
 | | Session Stats | Counts your kills, deaths, KDR, kill streak and best streak from the death messages, on a HUD panel. Starts again on login, on each server switch, or never. |
 | Chat | Anti-Mute | Replaces words that LeoneMC's filter mutes for before your message is sent, in chat and in private messages. Groups: discrimination, death wishes, swears and advertisements. |
 | | Alert Filter | Hides the kinds of `[Alert]` broadcast you choose: staff recruitment (hidden by default), purchases, events, streams, tips and others. Proxy restart warnings are never hidden. |
-| | Mentions | Plays a ping and highlights your name when someone mentions you. Extra keywords can be added. |
+| | Mentions | Plays a ping and highlights your name when a player mentions you in chat or staff chat. Join messages, kill messages and staff notices that contain your name do not count, and neither do your own messages. Extra keywords can be added. |
 | Friends | Friend Highlight | Makes your LeoneMC friends' names stand out in chat, with their status on hover. |
 | | Friend Activity | Turns `Friends \| X has joined the server Y.` into a short clickable line, a pop-up, or nothing, and can limit it to your own server. |
 | HUD | Action Bar | Draws the action bar wherever you place it in Modify HUD, with optional backdrop, shadow and fade. |
@@ -50,6 +50,8 @@ The Staff category only appears when your [leonemc.net](https://leonemc.net) pro
 | Mod Mode Status | A small HUD panel showing mod mode, vanish, whether staff chat is hidden, and how many punishments you have given this session. |
 
 While staff chat is hidden from capture, the Anticheat panel and staff pop-ups are hidden too.
+
+Mod mode is read from LeoneMC's own messages whenever you switch it. Joining a server with "Enable Mod Mode on Join" is silent, so Leone Client learns the items mod mode puts in your hotbar the first time you switch mod mode on and off, and recognises them when you join later. Until then, mod mode after a join shows as unknown, and while it is unknown only vanish can make staff chat visible. Vanish is read from the "You are currently Vanished" action bar and ends as soon as that stops repeating. Only messages from the server count, never player chat. `/leone staff` shows what Leone Client currently knows.
 
 ## The dock
 

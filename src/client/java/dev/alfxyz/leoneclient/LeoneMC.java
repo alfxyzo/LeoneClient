@@ -5,12 +5,15 @@ import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.network.Connection;
+import net.minecraft.world.scores.DisplaySlot;
+import net.minecraft.world.scores.Objective;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -30,6 +33,12 @@ public final class LeoneMC {
 	private static long pendingAt;
 	private static WeakReference<Connection> lastConnection = new WeakReference<>(null);
 	private static final List<Runnable> freshJoinListeners = new ArrayList<>();
+	/** Sidebar titles, without spaces and in lower case, and the server each one means. */
+	private static final Map<String, String> SIDEBAR_TITLES = Map.of(
+		"lobby", HUB, "hub", HUB, "elytrabox", "ElytraBox", "wildkits", "WildKits", "randomkits", "WildKits",
+		"coreraiding", "CoreRaiding", "insanekits", "InsaneKits", "lifesteal", "Lifesteal", "gens", "Gens", "survival", "Survival");
+	private static boolean checkSidebar;
+	private static int ticks;
 
 	private LeoneMC() {
 	}
@@ -41,13 +50,19 @@ public final class LeoneMC {
 			lastConnection = new WeakReference<>(conn);
 			ServerData data = mc.getCurrentServer();
 			connected = data != null && !mc.isLocalServer() && isLeoneAddress(data.ip);
+			boolean announced = pendingServer != null && System.currentTimeMillis() - pendingAt < 15_000;
 			if (!connected) {
 				server = null;
+			} else if (announced) {
+				server = pendingServer;
 			} else if (fresh) {
 				server = HUB;
-			} else if (pendingServer != null && System.currentTimeMillis() - pendingAt < 15_000) {
-				server = pendingServer;
+			} else {
+				// moved without a message (a kick back to the hub, say): the sidebar will tell
+				server = null;
 			}
+			// the sidebar can confirm or correct anything that was not announced
+			checkSidebar = connected && !announced;
 			pendingServer = null;
 			if (fresh && (connected || Modules.ALL_SERVERS.enabled())) {
 				for (Runnable r : freshJoinListeners) r.run();
@@ -60,6 +75,21 @@ public final class LeoneMC {
 				server = null;
 			}
 		});
+	}
+
+	/**
+	 * Reads the server from LeoneMC's sidebar title ("Lobby", "Elytra Box") when no message said where
+	 * the player went. Called every client tick; looks once a second until it knows.
+	 */
+	public static void tick(Minecraft mc) {
+		if (!checkSidebar || !connected || mc.level == null || ++ticks % 20 != 0) return;
+		Objective sidebar = mc.level.getScoreboard().getDisplayObjective(DisplaySlot.SIDEBAR);
+		if (sidebar == null) return;
+		String title = Chat.plain(sidebar.getDisplayName()).replace(" ", "").toLowerCase(Locale.ROOT);
+		String known = SIDEBAR_TITLES.get(title);
+		if (known == null) return;
+		server = known;
+		checkSidebar = false;
 	}
 
 	/** Runs whenever the player logs in to LeoneMC (not on server switches). */

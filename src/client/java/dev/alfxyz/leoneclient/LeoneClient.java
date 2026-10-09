@@ -69,6 +69,7 @@ public class LeoneClient implements ClientModInitializer {
 				else LogUtils.getLogger().debug("Leone Client: menu key pressed over {}", mc.gui.screen());
 			}
 			pollBinds(mc);
+			LeoneMC.tick(mc);
 			StaffState.tick(mc);
 			for (Module m : Modules.all()) m.tick(mc);
 		});
@@ -88,6 +89,14 @@ public class LeoneClient implements ClientModInitializer {
 				mc.execute(() -> mc.gui.setScreen(new LeoneScreen()));
 				return 1;
 			})
+			// what Leone Client knows about your staff state, and why
+			.then(ClientCommands.literal("staff").executes(ctx -> {
+				Chat.info(StaffState.describe());
+				String chat = Modules.STAFF_CHAT.unavailable();
+				if (chat == null) chat = Modules.STAFF_CHAT.active() ? "Staff Chat: " + Modules.STAFF_CHAT.status() + "." : "Staff Chat is off.";
+				Chat.info(chat);
+				return 1;
+			}))
 			.then(ClientCommands.literal("profile").then(ClientCommands.argument("name", StringArgumentType.word()).executes(ctx -> {
 				String name = StringArgumentType.getString(ctx, "name");
 				LeoneWeb.lookup(name).whenComplete((found, err) -> Minecraft.getInstance().execute(() -> {
@@ -111,8 +120,11 @@ public class LeoneClient implements ClientModInitializer {
 			boolean before = m.enabled();
 			if (down && !m.bindDown) m.onBindPressed();
 			m.bindDown = down;
-			if (m.enabled() != before && Modules.INTERFACE.bindNotices.get()) {
-				Notices.push(m.name, m.enabled() ? "Turned on" : "Turned off", m.enabled() ? Colors.ACCENT_RGB : 0x8E8E94, m.icon);
+			if (m.enabled() != before) {
+				LeoneConfig.save();
+				if (Modules.INTERFACE.bindNotices.get()) {
+					Notices.push(m.name, m.enabled() ? "Turned on" : "Turned off", m.enabled() ? Colors.ACCENT_RGB : 0x8E8E94, m.icon);
+				}
 			}
 		}
 	}
