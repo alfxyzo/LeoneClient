@@ -43,7 +43,7 @@ public abstract class Module {
 
 	/** The small heading above the name on the settings page. */
 	public String breadcrumb() {
-		return category.displayName;
+		return category.label();
 	}
 
 	/** Whether the module can appear in the Module List overlay (and so offers that switch). */

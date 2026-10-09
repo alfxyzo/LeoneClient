@@ -44,7 +44,7 @@ final class SearchPage extends Page {
 			for (Module m : Modules.all()) {
 				if (!m.category.visible()) continue;
 				String name = m.name.toLowerCase(Locale.ROOT);
-				if (name.contains(q) || m.category.displayName.toLowerCase(Locale.ROOT).startsWith(q)
+				if (name.contains(q) || m.category.label().toLowerCase(Locale.ROOT).startsWith(q)
 					|| q.length() >= 3 && m.description.toLowerCase(Locale.ROOT).contains(q)) all.add(m);
 			}
 			all.sort(Comparator.comparingInt((Module m) -> rank(m, q)).thenComparing(m -> m.name));
@@ -59,7 +59,7 @@ final class SearchPage extends Page {
 		if (name.startsWith(q)) return 1;
 		for (String word : name.split(" ")) if (word.startsWith(q)) return 2;
 		if (name.contains(q)) return 3;
-		return m.category.displayName.toLowerCase(Locale.ROOT).startsWith(q) ? 4 : 5;
+		return m.category.label().toLowerCase(Locale.ROOT).startsWith(q) ? 4 : 5;
 	}
 
 	private float listTop(Ui ui) {

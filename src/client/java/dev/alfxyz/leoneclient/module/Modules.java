@@ -14,6 +14,7 @@ import dev.alfxyz.leoneclient.features.CombatLogGuard;
 import dev.alfxyz.leoneclient.features.CombatTimer;
 import dev.alfxyz.leoneclient.features.EnderChestPages;
 import dev.alfxyz.leoneclient.features.FriendActivity;
+import dev.alfxyz.leoneclient.features.ItemCooldowns;
 import dev.alfxyz.leoneclient.features.FriendHighlight;
 import dev.alfxyz.leoneclient.features.Interface;
 import dev.alfxyz.leoneclient.features.LogFilter;
@@ -47,6 +48,7 @@ public final class Modules {
 	public static final Timers TIMERS = new Timers();
 	public static final AutoJoin AUTO_JOIN = new AutoJoin();
 	public static final AutoReconnect AUTO_RECONNECT = new AutoReconnect();
+	public static final ItemCooldowns ITEM_COOLDOWNS = new ItemCooldowns();
 	public static final EnderChestPages ENDER_CHEST_PAGES = new EnderChestPages();
 	public static final Interface INTERFACE = new Interface();
 	public static final AllServers ALL_SERVERS = new AllServers();
@@ -63,7 +65,9 @@ public final class Modules {
 		ACTION_BAR, TIMERS, PACK_WARNINGS,
 		AUTO_JOIN, AUTO_RECONNECT, ENDER_CHEST_PAGES,
 		INTERFACE, ALL_SERVERS, LOG_FILTER,
-		STAFF_CHAT, ANTICHEAT_ALERTS, REPORTS, MOD_MODE);
+		STAFF_CHAT, ANTICHEAT_ALERTS, REPORTS, MOD_MODE,
+		// LeoneMC servers, each only on its own server
+		ITEM_COOLDOWNS);
 
 	private Modules() {
 	}

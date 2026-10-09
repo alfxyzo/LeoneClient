@@ -33,6 +33,14 @@ public final class Timers extends Module {
 	private static final Pattern RESTART = Pattern.compile("^\\[Alert\\] Proxy restarting in (.+?)\\.(?:\\s.*)?$", Pattern.DOTALL);
 	/** "Envoys | An envoy event will start in 4:59!" */
 	private static final Pattern ENVOY_SOON = Pattern.compile("^Envoys \\| An envoy event will start in (\\d+):(\\d{2})!?$");
+	/** "Supplydrops | Supplydrops will spawn in 4:59!" on ElytraBox, "SupplyDrops| An Event will start in 4:59!" on InsaneKits. */
+	private static final Pattern SUPPLY_SOON = Pattern.compile("^Supply ?drops ?\\| (?:Supply ?drops will spawn in|An Event will start in) (\\d+):(\\d{2})!?$",
+		Pattern.CASE_INSENSITIVE);
+	/** Supply drops have begun, or someone collected one. */
+	private static final Pattern SUPPLY_BEGUN = Pattern.compile("^Supply ?drops ?\\| (?:Supply ?drops have started!|.+ has collected a supply ?drop!).*",
+		Pattern.CASE_INSENSITIVE);
+	/** "Reboot | The server is rebooting in 30 seconds", sent by each server before it restarts. */
+	private static final Pattern REBOOT = Pattern.compile("^Reboot \\| The server is rebooting in (\\d+) seconds?\\.?$");
 	private static final Pattern ENVOY_BEGUN = Pattern.compile("^Envoys \\| An envoy event has begun!.*");
 	/** "TARGET! Name is now the target! Eliminate them to win +250.0 Tokens!" */
 	private static final Pattern TARGET = Pattern.compile("^TARGET! (\\S+) is now the target! Eliminate them to win \\+([\\d.,]+) (\\w+)!?$");
@@ -45,12 +53,12 @@ public final class Timers extends Module {
 
 	public final Setting.Toggle events = add(new Setting.Toggle("events", "Events", "SHOW", true),
 		"Counts down to events such as Lava Rising and Sword events from [Alert] messages.");
-	public final Setting.Toggle restarts = add(new Setting.Toggle("restarts", "Proxy restarts", "SHOW", true),
-		"Counts down to a proxy restart, so you are not caught mid-fight when it disconnects you.");
+	public final Setting.Toggle restarts = add(new Setting.Toggle("restarts", "Restarts", "SHOW", true),
+		"Counts down to a proxy restart or a server reboot, so you are not caught mid-fight when it disconnects you.");
 	public final Setting.Toggle serverTimers = add(new Setting.Toggle("server_timers", "Server timers", "SHOW", true),
 		"Follows the countdowns in the server's sidebar, such as KOTH, Key All and Map Reset, so they can warn you too.");
-	public final Setting.Toggle envoys = add(new Setting.Toggle("envoys", "Envoys", "SHOW", true),
-		"Counts down to an envoy event once it is announced.");
+	public final Setting.Toggle envoys = add(new Setting.Toggle("envoys", "Envoys and supply drops", "SHOW", true),
+		"Counts down to an envoy event or supply drops (ElytraBox, InsaneKits) once they are announced.");
 	public final Setting.Toggle target = add(new Setting.Toggle("target", "Target bounty", "SHOW", true),
 		"Shows who the current Target is and the reward for eliminating them, until someone does.");
 	public final Setting.Slider shownAtOnce = add(new Setting.Slider("shown", "Shown at once", "PANEL", 1, 6, 1, 4, "%.0f"),
@@ -58,7 +66,7 @@ public final class Timers extends Module {
 	public final Setting.Toggle warn = add(new Setting.Toggle("warn", "Warn a minute before", "WARN", true),
 		"Shows a notification and plays a sound when a countdown reaches one minute.");
 
-	public enum Kind { EVENT, RESTART, SERVER, ENVOY, TARGET }
+	public enum Kind { EVENT, RESTART, SERVER, ENVOY, SUPPLY, TARGET }
 
 	public static final class Countdown {
 		public final Kind kind;
@@ -128,6 +136,23 @@ public final class Timers extends Module {
 			} else if (ENVOY_BEGUN.matcher(plain).matches()) {
 				countdowns.removeIf(c -> c.kind == Kind.ENVOY);
 			}
+			return;
+		}
+		m = SUPPLY_SOON.matcher(plain);
+		if (m.matches()) {
+			if (envoys.get()) {
+				long ms = (Long.parseLong(m.group(1)) * 60 + Long.parseLong(m.group(2))) * 1000;
+				put(new Countdown(Kind.SUPPLY, "Supply drops", "Crates drop in the PvP area", now + ms));
+			}
+			return;
+		}
+		if (SUPPLY_BEGUN.matcher(plain).matches()) {
+			countdowns.removeIf(c -> c.kind == Kind.SUPPLY);
+			return;
+		}
+		m = REBOOT.matcher(plain);
+		if (m.matches()) {
+			if (restarts.get()) put(new Countdown(Kind.RESTART, "Server reboot", "Back to the hub when it restarts", now + Long.parseLong(m.group(1)) * 1000));
 			return;
 		}
 		if (plain.startsWith("TARGET!")) {

@@ -11,6 +11,7 @@
 		"DisconnectedScreenAccessor",
 		"GameRendererMixin",
 		"HudMixin",
+		"ItemDecorationsMixin",
 		"KeyboardHandlerMixin",
 		"MinecraftMixin",
 		"TabListAccessor",

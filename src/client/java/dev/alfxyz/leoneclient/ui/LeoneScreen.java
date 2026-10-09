@@ -524,7 +524,7 @@ public class LeoneScreen extends Screen {
 			float blockH = 26 + 7 + text.lineHeight(Ui.LABEL) + 2 + text.lineHeight(Ui.SMALL);
 			float top = -blockH / 2;
 			ui.icons.draw(cv, cats.get(i).icon, -13, top, 26, 1.7f, col);
-			String name = cats.get(i).displayName;
+			String name = cats.get(i).label();
 			text.draw(cv, name, -text.width(name, Ui.LABEL) / 2, top + 33 + text.ascent(Ui.LABEL), Ui.LABEL, col);
 			float cy = top + 33 + text.lineHeight(Ui.LABEL) + 2;
 			text.draw(cv, count, -text.width(count, Ui.SMALL) / 2, cy + text.ascent(Ui.SMALL), Ui.SMALL, Colors.alpha(col, 0.62f));
@@ -584,7 +584,8 @@ public class LeoneScreen extends Screen {
 			all++;
 			if (m.enabled()) on++;
 		}
-		return all == 0 ? "settings" : on + " of " + all + " on";
+		if (all == 0) return c.isServer() ? "You are here" : "settings";
+		return on + " of " + all + " on";
 	}
 
 	private void drawHub(Canvas cv, double now) {

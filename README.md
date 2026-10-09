@@ -29,7 +29,7 @@ Every module starts switched off, so you only get what you turn on.
 | | Friend Activity | Turns `Friends \| X has joined the server Y.` into a short clickable line, a pop-up, or nothing, and can limit it to your own server. |
 | | Player Lookup | Give it a key, then press it while looking at a player to open their LeoneMC profile. `/leone profile` with no name does the same. |
 | HUD | Action Bar | Draws the action bar wherever you place it in Modify HUD, with optional backdrop, shadow and fade. |
-| | Timers | One HUD panel for what is coming: events (such as Lava Rising) and proxy restarts from `[Alert]` messages, the server's own sidebar countdowns (KOTH, Key All, Map Reset), envoy events, and the current Target bounty. Warns you a minute before, and works even when Alert Filter or Chat Cleaner hides the messages. |
+| | Timers | One HUD panel for what is coming: events (such as Lava Rising) and proxy restarts from `[Alert]` messages, server reboots, the server's own sidebar countdowns (KOTH, Key All, Map Reset), envoy events, supply drops (ElytraBox and InsaneKits), and the current Target bounty. Warns you a minute before, and works even when Alert Filter or Chat Cleaner hides the messages. |
 | | Pack Warnings | Hides LeoneMC's resource pack titles and reminders. |
 | Server | Auto Join | Sends you to ElytraBox, WildKits, CoreRaiding, InsaneKits, Lifesteal, Gens, Survival or any server you type when you log in. |
 | | Auto Reconnect | After a restart or a dropped connection, the disconnect screen counts down and puts you back on LeoneMC, then on the server you were on. It never reconnects after a kick, a ban or a login from elsewhere, gives up after five tries in a row, and one click cancels it. |
@@ -58,6 +58,14 @@ Under the Staff modules, the Staff page lists who was flagged recently (with the
 While LeoneMC's staff chat toggle is on, the open chat always shows **Typing goes to staff chat** above the input, so nothing meant for one chat lands in the other.
 
 Mod mode is read from LeoneMC's own messages whenever you switch it. Joining a server with "Enable Mod Mode on Join" is silent, so Leone Client learns the items mod mode puts in your hotbar the first time you switch mod mode on and off, and recognises them when you join later. Until then, mod mode after a join shows as unknown, and while it is unknown only vanish can make staff chat visible. Vanish is read from the "You are currently Vanished" action bar and ends as soon as that stops repeating. Only messages from the server count, never player chat. `/leone staff` shows what Leone Client currently knows.
+
+### LeoneMC's servers
+
+The wheel has one more segment for the LeoneMC server you are on: ElytraBox, WildKits, CoreRaiding, InsaneKits, Lifesteal, Gens, Survival, MoneyDupe, KnockbackFFA, Practice, Events or Hub, or the server's own name for one Leone Client does not know yet. It says what the server is about, and holds the modules made for it. They only run on that server: switch server and they stop and disappear, then come back as you left them when you return. A server with nothing made for it yet says so. To set them up away from LeoneMC, turn on **All Servers** and choose a server under **Act as if on**.
+
+| Server | Module | What it does |
+|---|---|---|
+| ElytraBox | Item Cooldowns | Times the Cage, the Cobweb Circle and Knockback weapons, whose cooldowns the game does not show. Each use starts a timer unless the server refuses it, and the server's own "You cannot use cage item for another 12 seconds!" sets the timer to exactly that. A HUD panel lists what is cooling down, the item in your hotbar and inventory counts down like a vanilla cooldown, and a ping or pop-up says when each is ready. Timers last through relogging. The cooldown lengths can be changed, and the server's cooldown messages can be hidden. |
 
 ### Built into chat
 

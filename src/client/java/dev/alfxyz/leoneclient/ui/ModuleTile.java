@@ -54,7 +54,7 @@ final class ModuleTile {
 		float lh = ui.text.lineHeight(Ui.TILE), sh = ui.text.lineHeight(Ui.SMALL);
 		float top = y + (H - lh - sh) / 2;
 		ui.text.draw(ui.cv, ui.text.fit(m.name, Ui.TILE, maxW), tx, top + ui.text.ascent(Ui.TILE), Ui.TILE, fg.get(ui.now));
-		ui.text.draw(ui.cv, ui.text.fit(m.category.displayName, Ui.SMALL, maxW), tx, top + lh + ui.text.ascent(Ui.SMALL), Ui.SMALL, Colors.TEXT_HINT);
+		ui.text.draw(ui.cv, ui.text.fit(m.category.label(), Ui.SMALL, maxW), tx, top + lh + ui.text.ascent(Ui.SMALL), Ui.SMALL, Colors.TEXT_HINT);
 		if (toggleable) ui.switchToggle(x + W - 14 - 26, y + H / 2 - 7, false, knob.get(ui.now));
 		else ui.icons.draw(ui.cv, Icons.GEAR, x + W - 14 - 16, y + H / 2 - 8, 16, 1.8f, Colors.TEXT_MUTED);
 		Runnable settings = () -> screen.openSettings(m);

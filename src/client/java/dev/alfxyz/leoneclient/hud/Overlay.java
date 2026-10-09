@@ -13,6 +13,7 @@ import java.util.List;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.ItemStack;
 import org.joml.Matrix3x2f;
 import org.jspecify.annotations.Nullable;
 
@@ -140,6 +141,28 @@ public abstract class Overlay {
 			this.g = g;
 			this.now = now;
 			this.editor = editor;
+		}
+
+		private final List<Object[]> items = new ArrayList<>();
+
+		/** A Minecraft item icon at a spot in design px. Items are drawn after the canvas, above it. */
+		public void item(ItemStack stack, float x, float y, float size) {
+			items.add(new Object[] {stack, cv.tx(x, y), cv.ty(x, y), size * cv.currentScale()});
+		}
+
+		/** Draws the queued item icons; call once the canvas has been flushed. */
+		public void drawItems() {
+			if (items.isEmpty()) return;
+			g.nextStratum();
+			for (Object[] it : items) {
+				float s = (float) it[3] / 16f;
+				g.pose().pushMatrix();
+				g.pose().translate((float) it[1], (float) it[2]);
+				g.pose().scale(s, s);
+				g.item((ItemStack) it[0], 0, 0);
+				g.pose().popMatrix();
+			}
+			items.clear();
 		}
 
 		/** Design px per GUI pixel. */

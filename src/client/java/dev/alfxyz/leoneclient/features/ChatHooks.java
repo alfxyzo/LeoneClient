@@ -20,6 +20,7 @@ public final class ChatHooks {
 		if (source == GuiMessageSource.SYSTEM_SERVER) {
 			LeoneMC.onChat(plain);
 			StaffState.onServerMessage(plain);
+			if (Modules.ITEM_COOLDOWNS.onServerMessage(plain)) return null;
 		}
 		// trackers first, so they see lines that a filter below hides
 		Modules.TIMERS.track(plain);

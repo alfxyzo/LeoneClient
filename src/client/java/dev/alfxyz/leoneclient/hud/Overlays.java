@@ -6,6 +6,7 @@ import dev.alfxyz.leoneclient.anim.Anim;
 import dev.alfxyz.leoneclient.anim.Ease;
 import dev.alfxyz.leoneclient.features.ActionBars;
 import dev.alfxyz.leoneclient.features.AnticheatAlerts;
+import dev.alfxyz.leoneclient.features.ItemCooldowns;
 import dev.alfxyz.leoneclient.features.ModModeStatus;
 import dev.alfxyz.leoneclient.features.SessionStats;
 import dev.alfxyz.leoneclient.features.Timers;
@@ -27,6 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.level.Level;
@@ -49,7 +51,7 @@ final class Overlays {
 
 	static List<Overlay> create() {
 		return List.of(new Watermark(), new ModuleList(), new ActionBarOverlay(), new CombatBarOverlay(), new Notifications(), new ServerOverlay(),
-			new TimersPanel(), new SessionStatsOverlay(), new StaffStatusOverlay(), new AnticheatPanel(),
+			new TimersPanel(), new SessionStatsOverlay(), new StaffStatusOverlay(), new AnticheatPanel(), new CooldownsPanel(),
 			new Fps(), new Ping(), new Coordinates(), new Speed(), new Cps(), new Keystrokes());
 	}
 
@@ -1007,7 +1009,8 @@ final class Overlays {
 			boolean restart = t.kind == Timers.Kind.RESTART, targetRow = t.kind == Timers.Kind.TARGET;
 			long left = t == SAMPLE ? 7 * 60_000 + 30_000 : t.endsAt - System.currentTimeMillis();
 			int color = restart || targetRow ? 0xFFF87171 : left < 60_000 ? 0xFFFBBF24 : Colors.ACCENT;
-			String icon = restart ? Icons.ALERT : targetRow ? Icons.SWORDS : t.kind == Timers.Kind.ENVOY ? Icons.GEM : Icons.CLOCK;
+			String icon = restart ? Icons.ALERT : targetRow ? Icons.SWORDS : t.kind == Timers.Kind.ENVOY ? Icons.GEM
+				: t.kind == Timers.Kind.SUPPLY ? Icons.ARCHIVE : Icons.CLOCK;
 			Gfx.icons().draw(c.cv, icon, x + 2, y + 9, 16, 1.8f, color);
 			String clock = t.live ? "Live" : left <= 0 ? "Now" : Time.clock(left);
 			float cw = c.text.width(clock, VALUE_STRONG);
@@ -1015,6 +1018,81 @@ final class Overlays {
 			float tx = x + 2 + 16 + 9, maxW = w - (tx - x) - cw - 10;
 			c.text.draw(c.cv, c.text.fit(t.title, ROW_TITLE, maxW), tx, c.text.baselineFor(ROW_TITLE, y + 10), ROW_TITLE, Colors.TEXT);
 			c.text.draw(c.cv, c.text.fit(t.detail, ROW_TEXT, maxW), tx, c.text.baselineFor(ROW_TEXT, y + 25), ROW_TEXT, Colors.TEXT_HINT);
+		}
+	}
+
+	/** ElytraBox's item cooldowns: the item, its name, a bar running down and the time left. */
+	static final class CooldownsPanel extends Panel {
+		CooldownsPanel() {
+			// bottom right: clear of the hotbar and of chat on the left, wherever the eye is in a fight
+			super("item_cooldowns", "Item Cooldowns", "ElytraBox item cooldowns", END, END, 8, 8);
+		}
+
+		@Override
+		public Module owner() {
+			return Modules.ITEM_COOLDOWNS;
+		}
+
+		@Override
+		public boolean available() {
+			return Modules.ITEM_COOLDOWNS.category.visible();
+		}
+
+		@Override
+		public boolean enabled() {
+			return Modules.ITEM_COOLDOWNS.enabled() && available();
+		}
+
+		@Override
+		public void setEnabled(boolean on) {
+			Modules.ITEM_COOLDOWNS.setEnabled(on);
+		}
+
+		@Override
+		public boolean shown() {
+			return !Modules.ITEM_COOLDOWNS.shown().isEmpty();
+		}
+
+		private List<ItemCooldowns.Tracker> list(Context c) {
+			List<ItemCooldowns.Tracker> l = Modules.ITEM_COOLDOWNS.shown();
+			return l.isEmpty() && c.editor ? List.of(Modules.ITEM_COOLDOWNS.trackers.getFirst()) : l;
+		}
+
+		@Override
+		int rows(Context c) {
+			return list(c).size();
+		}
+
+		@Override
+		float rowHeight() {
+			return 34;
+		}
+
+		@Override
+		String title() {
+			return "COOLDOWNS";
+		}
+
+		@Override
+		void row(Context c, int i, float x, float y, float w) {
+			ItemCooldowns.Tracker t = list(c).get(i);
+			// in Modify HUD with nothing running, a Cage part way through shows what the panel looks like
+			boolean sample = c.editor && Modules.ITEM_COOLDOWNS.shown().isEmpty();
+			boolean ready = !t.running() && !sample;
+			long left = sample ? 134_000 : t.left();
+			float frac = sample ? 0.75f : t.remaining();
+			c.item(new ItemStack(t.icon), x + 1, y + 6, 18);
+			String time = ready ? "Ready" : Time.clock(left);
+			int timeColor = ready ? 0xFF4ADE80 : left < 10_000 ? 0xFFFBBF24 : Colors.TEXT;
+			float tw = c.text.width(time, VALUE_STRONG);
+			c.text.draw(c.cv, time, x + w - tw, c.text.baselineFor(VALUE_STRONG, y + 13), VALUE_STRONG, timeColor);
+			float tx = x + 1 + 18 + 9, maxW = w - (tx - x) - tw - 10;
+			c.text.draw(c.cv, c.text.fit(t.name, ROW_TITLE, maxW), tx, c.text.baselineFor(ROW_TITLE, y + 13), ROW_TITLE, Colors.TEXT);
+			// the bar fills as the cooldown runs, and is green once the item is ready
+			float bw = w - (tx - x), by = y + 23;
+			c.cv.fillRoundRect(tx, by, bw, 4, 2, Colors.white(0.1f));
+			float fill = ready ? 1 : 1 - frac;
+			if (fill > 0) c.cv.fillRoundRect(tx, by, Math.max(4, bw * fill), 4, 2, ready ? 0xFF4ADE80 : left < 10_000 ? 0xFFFBBF24 : Colors.ACCENT);
 		}
 	}
 

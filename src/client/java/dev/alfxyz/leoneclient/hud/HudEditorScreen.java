@@ -132,6 +132,7 @@ public class HudEditorScreen extends Screen {
 		c.pop();
 		c.pop();
 		c.flush(g);
+		ctx.drawItems();
 		text.setGraphics(null);
 		boolean overButton = !toolbarFaded && (inside(resetBtn, mdx, mdy) || inside(doneBtn, mdx, mdy));
 		if (dragging != null || resizing != null) g.requestCursor(CursorTypes.RESIZE_ALL);

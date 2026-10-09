@@ -121,6 +121,7 @@ public final class Hud {
 		for (Overlay o : shown) draw(ctx, o, rects.get(o));
 		cv.pop();
 		cv.flush(g);
+		ctx.drawItems();
 		Gfx.text().setGraphics(null);
 	}
 

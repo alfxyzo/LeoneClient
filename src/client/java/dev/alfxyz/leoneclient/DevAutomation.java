@@ -6,6 +6,9 @@ import com.mojang.logging.LogUtils;
 import dev.alfxyz.leoneclient.features.ActionBars;
 import dev.alfxyz.leoneclient.features.AutoReconnect;
 import dev.alfxyz.leoneclient.features.ChatTabs;
+import dev.alfxyz.leoneclient.features.ItemCooldowns;
+import dev.alfxyz.leoneclient.features.Timers;
+import dev.alfxyz.leoneclient.module.Category;
 import dev.alfxyz.leoneclient.mixin.ChatHistoryAccessor;
 import dev.alfxyz.leoneclient.staffchat.StaffPlaceholder;
 import dev.alfxyz.leoneclient.hud.Hud;
@@ -37,6 +40,7 @@ import net.minecraft.client.multiplayer.chat.GuiMessage;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.input.MouseButtonInfo;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.LevelSettings;
@@ -390,6 +394,84 @@ public final class DevAutomation {
 			out.add(Chat.plain(c));
 		}
 		return out;
+	}
+
+	private static ItemCooldowns.Tracker tracker(String id) {
+		return Modules.ITEM_COOLDOWNS.trackers.stream().filter(t -> t.id.equals(id)).findFirst().orElseThrow();
+	}
+
+	/** Each LeoneMC server's category shows only there, its modules run only there, and ElytraBox's item cooldowns. */
+	private static void serverChecks() {
+		at(200, "servers: names", mc -> {
+			check("server names find their category", Category.forServer("ElytraBox") == Category.ELYTRABOX && Category.forServer("Event-02") == Category.EVENTS
+				&& Category.forServer("NA-Hub-01") == Category.HUB && Category.forServer("NAE-Practice-Spawn-1") == Category.PRACTICE
+				&& Category.forServer("Beachfest") == Category.EVENTS && Category.forServer("RandomKits") == Category.WILDKITS);
+			check("a server Leone Client does not know gets a category of its own", Category.forServer("Skyblock") == Category.OTHER);
+			check("off LeoneMC there is no server category", Category.current() == null && !Category.shown().contains(Category.ELYTRABOX));
+			Modules.ALL_SERVERS.setEnabled(true);
+			Category.pretendServer = "ElytraBox";
+			Modules.ITEM_COOLDOWNS.setEnabled(true);
+			Hud.byId("item_cooldowns").resetPosition();
+			check("on ElytraBox its category shows, and only it", Category.shown().contains(Category.ELYTRABOX) && !Category.shown().contains(Category.LIFESTEAL));
+			check("ElytraBox's modules run on ElytraBox", Modules.ITEM_COOLDOWNS.active());
+			hotbar(mc, "red_stained_glass|Cage", "bone_meal|Cobweb Circle", "stick", null, null, null, null, null, null);
+			mc.player.getInventory().setSelectedSlot(0);
+		});
+		at(300, "cooldowns: use the cage", mc -> Modules.ITEM_COOLDOWNS.debugUse(InteractionHand.MAIN_HAND, ItemCooldowns.Trigger.USE));
+		at(600, "cooldowns: cage running", mc -> {
+			ItemCooldowns.Tracker cage = tracker("cage");
+			check("using the Cage starts its three minute cooldown (" + cage.left() + " ms)", cage.running() && cage.left() > 170_000);
+			server(mc, "You cannot use cage item for another 37 seconds!");
+		});
+		at(200, "cooldowns: synced", mc -> {
+			ItemCooldowns.Tracker cage = tracker("cage");
+			check("the server's time left corrects the timer (" + cage.left() + " ms)", cage.left() > 35_000 && cage.left() <= 37_000);
+			mc.player.getInventory().setSelectedSlot(1);
+		});
+		at(200, "cooldowns: cobweb refused", mc -> {
+			Modules.ITEM_COOLDOWNS.debugUse(InteractionHand.MAIN_HAND, ItemCooldowns.Trigger.USE);
+			server(mc, "You cannot use cobweb circle here!");
+		});
+		at(600, "cooldowns: not started", mc -> {
+			check("a use the server refuses does not start a timer", !tracker("cobweb_circle").running());
+			Modules.ITEM_COOLDOWNS.debugLeft("cobweb_circle", 1200);
+			mc.player.getInventory().setSelectedSlot(0);
+		});
+		shot(400, "53-item-cooldowns");
+		at(1600, "cooldowns: ready", mc -> {
+			ItemCooldowns.Tracker web = tracker("cobweb_circle");
+			check("a finished cooldown is ready, and shown as Ready for a moment", !web.running() && Modules.ITEM_COOLDOWNS.shown().contains(web));
+			server(mc, "Supplydrops | Supplydrops will spawn in 4:59!");
+			server(mc, "Reboot | The server is rebooting in 30 seconds");
+			mc.gui.setScreen(new LeoneScreen());
+		});
+		at(800, "servers: elytrabox page", mc -> {
+			var list = Modules.TIMERS.list();
+			check("supply drops and reboots count down", list.stream().anyMatch(c -> c.kind == Timers.Kind.SUPPLY)
+				&& list.stream().anyMatch(c -> c.kind == Timers.Kind.RESTART && c.title.equals("Server reboot")));
+			click(mc, screen(mc).debugSegment(Category.shown().size() - 1), 0);
+		});
+		shot(1000, "54-category-elytrabox");
+		at(100, "servers: switch", mc -> {
+			mc.gui.setScreen(null);
+			Category.pretendServer = "Lifesteal";
+			server(mc, "Supplydrops | Someone has collected a supplydrop! (3 remaining)");
+		});
+		at(300, "servers: lifesteal", mc -> {
+			check("on another server ElytraBox's modules stop, but stay switched on for later", !Modules.ITEM_COOLDOWNS.active() && Modules.ITEM_COOLDOWNS.enabled());
+			check("supply drops go once they begin", Modules.TIMERS.list().stream().noneMatch(c -> c.kind == Timers.Kind.SUPPLY));
+			mc.gui.setScreen(new LeoneScreen());
+		});
+		at(800, "servers: lifesteal page", mc -> click(mc, screen(mc).debugSegment(Category.shown().size() - 1), 0));
+		shot(1000, "55-category-empty");
+		at(100, "servers: done", mc -> {
+			mc.gui.setScreen(null);
+			Modules.ITEM_COOLDOWNS.clearAll();
+			Modules.ITEM_COOLDOWNS.reset();
+			Category.pretendServer = null;
+			Modules.ALL_SERVERS.setEnabled(false);
+			hotbar(mc, NORMAL_HOTBAR);
+		});
 	}
 
 	/** LeoneMC is recognised by any address: plainly LeoneMC's ones at once, others by its signs, then remembered. */
@@ -793,6 +875,7 @@ public final class DevAutomation {
 		reconnectChecks();
 		chatTabsChecks();
 		networkChecks();
+		serverChecks();
 
 		// a full atlas is wiped before the next frame, and drawing carries on (heads, icons and text come back)
 		at(200, "atlas: fill it", mc -> {
