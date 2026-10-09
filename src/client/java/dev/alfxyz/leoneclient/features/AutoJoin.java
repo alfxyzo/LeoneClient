@@ -43,6 +43,11 @@ public final class AutoJoin extends Module {
 		return true;
 	}
 
+	/** Drops a switch that has not happened yet (Auto Reconnect is taking you elsewhere). */
+	public void cancelPending() {
+		pending = null;
+	}
+
 	public @Nullable String target() {
 		String t = server.is(CUSTOM) ? custom.get().strip() : server.get();
 		return t.isEmpty() ? null : t;

@@ -4,6 +4,7 @@ import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.logging.LogUtils;
 import dev.alfxyz.leoneclient.features.ActionBars;
+import dev.alfxyz.leoneclient.features.AutoReconnect;
 import dev.alfxyz.leoneclient.hud.Hud;
 import dev.alfxyz.leoneclient.hud.HudEditorScreen;
 import dev.alfxyz.leoneclient.module.Modules;
@@ -22,9 +23,11 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
+import net.minecraft.client.gui.screens.DisconnectedScreen;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.client.gui.screens.worldselection.SelectWorldScreen;
 import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.input.MouseButtonInfo;
 import net.minecraft.network.chat.Component;
@@ -73,6 +76,8 @@ public final class DevAutomation {
 	}
 
 	private static void tick(Minecraft mc) {
+		// the test window may be behind others; a pause menu would get in the way of every step
+		mc.options.pauseOnLostFocus = false;
 		if (!worldRequested && mc.level == null && mc.gui.screen() != null && mc.gui.screen().getClass().getSimpleName().contains("Onboarding")) {
 			// a fresh game folder starts on the accessibility screen
 			mc.options.onboardAccessibility = false;
@@ -211,22 +216,24 @@ public final class DevAutomation {
 	}
 
 	/** Puts items in the hotbar on the integrated server, like LeoneMC's mod mode does. Null clears a slot. */
+	private static net.minecraft.world.item.ItemStack hotbarStack(String[] named, int i) {
+		if (i >= named.length || named[i] == null) return net.minecraft.world.item.ItemStack.EMPTY;
+		String[] parts = named[i].split("\\|", 2);
+		net.minecraft.world.item.Item item = net.minecraft.core.registries.BuiltInRegistries.ITEM.getValue(
+			net.minecraft.resources.Identifier.withDefaultNamespace(parts[0]));
+		net.minecraft.world.item.ItemStack stack = new net.minecraft.world.item.ItemStack(item);
+		if (parts.length > 1) stack.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME, Component.literal(parts[1]));
+		return stack;
+	}
+
 	private static void hotbar(Minecraft mc, String... named) {
 		var server = mc.getSingleplayerServer();
 		if (server == null) return;
+		// the client's copy changes at once, as a real join starts from a fresh inventory, and the server's to match
+		if (mc.player != null) for (int i = 0; i < 9; i++) mc.player.getInventory().setItem(i, hotbarStack(named, i));
 		server.execute(() -> {
 			var player = server.getPlayerList().getPlayers().getFirst();
-			for (int i = 0; i < 9; i++) {
-				net.minecraft.world.item.ItemStack stack = net.minecraft.world.item.ItemStack.EMPTY;
-				if (i < named.length && named[i] != null) {
-					String[] parts = named[i].split("\\|", 2);
-					net.minecraft.world.item.Item item = net.minecraft.core.registries.BuiltInRegistries.ITEM.getValue(
-						net.minecraft.resources.Identifier.withDefaultNamespace(parts[0]));
-					stack = new net.minecraft.world.item.ItemStack(item);
-					if (parts.length > 1) stack.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME, Component.literal(parts[1]));
-				}
-				player.getInventory().setItem(i, stack);
-			}
+			for (int i = 0; i < 9; i++) player.getInventory().setItem(i, hotbarStack(named, i));
 		});
 	}
 
@@ -327,6 +334,47 @@ public final class DevAutomation {
 	/** Timers from the sidebar, envoys and the Target; Chat Cleaner's hiding and stacking. */
 	private static boolean tapWasOn;
 
+	/** The disconnect screen counts down after a restart, and never after a ban; nothing actually connects. */
+	private static void reconnectChecks() {
+		at(200, "reconnect: reasons", mc -> {
+			check("a kick is not reconnected", AutoReconnect.onPurpose("You were kicked from the server: Spamming"));
+			check("a ban is not reconnected", AutoReconnect.onPurpose("You are permanently banned from this server!"));
+			check("a login from elsewhere is not reconnected", AutoReconnect.onPurpose("You logged in from another location"));
+			check("restarts and timeouts are reconnected", !AutoReconnect.onPurpose("Proxy restarting") && !AutoReconnect.onPurpose("Timed out")
+				&& !AutoReconnect.onPurpose("Server closed") && !AutoReconnect.onPurpose("The server you were on has restarted"));
+			Modules.AUTO_RECONNECT.setEnabled(true);
+			Modules.AUTO_RECONNECT.delay.set(60);
+			Modules.AUTO_RECONNECT.debugDropped(new ServerData("LeoneMC", "play.leonemc.net", ServerData.Type.OTHER), "Lifesteal");
+			mc.gui.setScreen(new DisconnectedScreen(new TitleScreen(), Component.literal("Connection Lost"), Component.literal("Proxy restarting")));
+		});
+		at(400, "reconnect: countdown", mc -> check("the disconnect screen counts down to reconnecting",
+			widgetTexts(mc).stream().anyMatch(t -> t.startsWith("Reconnecting in"))));
+		shot(300, "48-reconnect");
+		at(100, "reconnect: banned", mc -> {
+			Modules.AUTO_RECONNECT.debugDropped(new ServerData("LeoneMC", "play.leonemc.net", ServerData.Type.OTHER), "Lifesteal");
+			mc.gui.setScreen(new DisconnectedScreen(new TitleScreen(), Component.literal("Disconnected"), Component.literal("You are banned from LeoneMC")));
+		});
+		at(400, "reconnect: no countdown", mc -> {
+			List<String> texts = widgetTexts(mc);
+			check("after a ban there is only a Reconnect button, no countdown",
+				texts.contains("Reconnect") && texts.stream().noneMatch(t -> t.startsWith("Reconnecting in")));
+			mc.gui.setScreen(new DisconnectedScreen(new TitleScreen(), Component.literal("Disconnected"), Component.literal("Somewhere else failed")));
+		});
+		at(400, "reconnect: not ours", mc -> {
+			check("another server failing to connect is left alone", widgetTexts(mc).stream().noneMatch(t -> t.startsWith("Reconnect")));
+			Modules.AUTO_RECONNECT.debugForget();
+			Modules.AUTO_RECONNECT.reset();
+			mc.gui.setScreen(null);
+		});
+	}
+
+	private static List<String> widgetTexts(Minecraft mc) {
+		List<String> out = new ArrayList<>();
+		if (mc.gui.screen() == null) return out;
+		for (var w : net.fabricmc.fabric.api.client.screen.v1.Screens.getWidgets(mc.gui.screen())) out.add(w.getMessage().getString());
+		return out;
+	}
+
 	/** A module key tapped faster than a tick still counts, once per tap. */
 	private static void keybindChecks() {
 		at(200, "keybind: quick tap", mc -> {
@@ -341,17 +389,27 @@ public final class DevAutomation {
 		});
 		at(150, "keybind: back", mc -> {
 			check("a second tap switches it back", Modules.MENTIONS.enabled() == tapWasOn);
+			// Q is Minecraft's drop key: the settings say so
+			Modules.MENTIONS.bind = GLFW.GLFW_KEY_Q;
+			mc.gui.setScreen(new LeoneScreen());
+		});
+		at(700, "keybind: chat", mc -> click(mc, screen(mc).debugSegment(1), 0));
+		at(900, "keybind: settings", mc -> screen(mc).debugSettings(Modules.MENTIONS));
+		at(900, "keybind: hover warning", mc -> move(mc, screen(mc).debugPanel(110, 160)));
+		shot(900, "49-key-clash");
+		at(100, "keybind: clear", mc -> {
 			Modules.MENTIONS.bind = -1;
+			mc.gui.setScreen(null);
 		});
 	}
 
 	/** Presses and releases a key through Minecraft's own keyboard handler, both within one tick. */
 	private static void tap(Minecraft mc, int key) {
 		try {
-			var press = net.minecraft.client.KeyboardHandler.class.getDeclaredMethod("keyPress", long.class, int.class, net.minecraft.client.input.KeyEvent.class);
+			var press = net.minecraft.client.KeyboardHandler.class.getDeclaredMethod("keyPress", long.class, int.class, KeyEvent.class);
 			press.setAccessible(true);
-			press.invoke(mc.keyboardHandler, mc.getWindow().handle(), GLFW.GLFW_PRESS, new net.minecraft.client.input.KeyEvent(key, 0, 0));
-			press.invoke(mc.keyboardHandler, mc.getWindow().handle(), GLFW.GLFW_RELEASE, new net.minecraft.client.input.KeyEvent(key, 0, 0));
+			press.invoke(mc.keyboardHandler, mc.getWindow().handle(), GLFW.GLFW_PRESS, new KeyEvent(key, 0, 0));
+			press.invoke(mc.keyboardHandler, mc.getWindow().handle(), GLFW.GLFW_RELEASE, new KeyEvent(key, 0, 0));
 		} catch (ReflectiveOperationException e) {
 			check("tapping a key through the keyboard handler", false);
 		}
@@ -581,6 +639,7 @@ public final class DevAutomation {
 		staffStateChecks();
 		eventAndCleanerChecks();
 		keybindChecks();
+		reconnectChecks();
 
 		// a full atlas is wiped before the next frame, and drawing carries on (heads, icons and text come back)
 		at(200, "atlas: fill it", mc -> {

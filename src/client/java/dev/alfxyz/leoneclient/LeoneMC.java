@@ -25,7 +25,7 @@ public final class LeoneMC {
 	public static final String WEBSITE = "https://leonemc.net";
 	/** "Connecting you to ElytraBox." after /server, "Sending you to WildKits" from the hub selector. */
 	private static final Pattern SWITCH = Pattern.compile("^(?:Connecting you to|Sending you to) ([A-Za-z0-9_-]+)\\.?$");
-	private static final String HUB = "Hub";
+	public static final String HUB = "Hub";
 
 	private static volatile boolean connected;
 	private static volatile @Nullable String server;

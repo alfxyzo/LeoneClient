@@ -31,12 +31,13 @@ Every module starts switched off, so you only get what you turn on.
 | | Timers | One HUD panel for what is coming: events (such as Lava Rising) and proxy restarts from `[Alert]` messages, the server's own sidebar countdowns (KOTH, Key All, Map Reset), envoy events, and the current Target bounty. Warns you a minute before, and works even when Alert Filter or Chat Cleaner hides the messages. |
 | | Pack Warnings | Hides LeoneMC's resource pack titles and reminders. |
 | Server | Auto Join | Sends you to ElytraBox, WildKits, CoreRaiding, InsaneKits, Lifesteal, Gens, Survival or any server you type when you log in. |
+| | Auto Reconnect | After a restart or a dropped connection, the disconnect screen counts down and puts you back on LeoneMC, then on the server you were on. It never reconnects after a kick, a ban or a login from elsewhere, gives up after five tries in a row, and one click cancels it. |
 | | Ender Chest Pages | Makes `/ec (number)` and `/enderchest (number)` run `/pv (number)`. While it is off, those commands go to the server as normal. |
 | Client | Interface | Accent colour (Leone Pink, Leone Blue, Purple, Royal Blue or Emerald), font, sounds and blur. |
 | | All Servers | Runs the LeoneMC-only modules everywhere, including singleplayer, which is handy for trying them out. |
 | | Log Filter | Keeps the thousands of harmless warnings LeoneMC causes out of your game log. |
 
-Left-click a card to switch a module on or off, and right-click it (or use the gear) for its settings. Every setting explains itself when you hover it. Any module can be given a key that switches it on or off while you play: open its settings, click **Set a key** and press the key (Escape cancels, and the cross clears it).
+Left-click a card to switch a module on or off, and right-click it (or use the gear) for its settings. Every setting explains itself when you hover it. Any module can be given a key that switches it on or off while you play: open its settings, click **Set a key** and press the key (Escape cancels, and the cross clears it). If the key is also one of Minecraft's controls or another module's key, the settings say so.
 
 <p align="center"><img src="docs/settings.png" alt="A module's settings" /></p>
 

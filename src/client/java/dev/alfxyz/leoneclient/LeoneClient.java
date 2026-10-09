@@ -132,7 +132,8 @@ public class LeoneClient implements ClientModInitializer {
 		if (pressed.isEmpty()) return;
 		int[] keys = pressed.toIntArray();
 		pressed.clear();
-		if (mc.player == null || mc.gui.screen() != null) return;
+		// whether you were playing was decided when the key went down; a menu opening since does not undo the press
+		if (mc.player == null) return;
 		for (Module m : Modules.all()) {
 			if (m.bind < 0 || !m.toggleable() || !contains(keys, m.bind)) continue;
 			boolean before = m.enabled();

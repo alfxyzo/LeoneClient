@@ -6,6 +6,7 @@ import dev.alfxyz.leoneclient.features.AllServers;
 import dev.alfxyz.leoneclient.features.AnticheatAlerts;
 import dev.alfxyz.leoneclient.features.AntiMute;
 import dev.alfxyz.leoneclient.features.AutoJoin;
+import dev.alfxyz.leoneclient.features.AutoReconnect;
 import dev.alfxyz.leoneclient.features.ChatCleaner;
 import dev.alfxyz.leoneclient.features.CombatBar;
 import dev.alfxyz.leoneclient.features.CombatLogGuard;
@@ -43,6 +44,7 @@ public final class Modules {
 	public static final PackWarnings PACK_WARNINGS = new PackWarnings();
 	public static final Timers TIMERS = new Timers();
 	public static final AutoJoin AUTO_JOIN = new AutoJoin();
+	public static final AutoReconnect AUTO_RECONNECT = new AutoReconnect();
 	public static final EnderChestPages ENDER_CHEST_PAGES = new EnderChestPages();
 	public static final Interface INTERFACE = new Interface();
 	public static final AllServers ALL_SERVERS = new AllServers();
@@ -57,7 +59,7 @@ public final class Modules {
 		ANTI_MUTE, ALERT_FILTER, CHAT_CLEANER, MENTIONS,
 		FRIEND_HIGHLIGHT, FRIEND_ACTIVITY, PLAYER_LOOKUP,
 		ACTION_BAR, TIMERS, PACK_WARNINGS,
-		AUTO_JOIN, ENDER_CHEST_PAGES,
+		AUTO_JOIN, AUTO_RECONNECT, ENDER_CHEST_PAGES,
 		INTERFACE, ALL_SERVERS, LOG_FILTER,
 		STAFF_CHAT, ANTICHEAT_ALERTS, REPORTS, MOD_MODE);
 
