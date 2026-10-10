@@ -7,6 +7,7 @@ import dev.alfxyz.leoneclient.anim.Ease;
 import dev.alfxyz.leoneclient.features.ActionBars;
 import dev.alfxyz.leoneclient.features.AnticheatAlerts;
 import dev.alfxyz.leoneclient.features.ItemCooldowns;
+import dev.alfxyz.leoneclient.features.WebEscape;
 import dev.alfxyz.leoneclient.features.ModModeStatus;
 import dev.alfxyz.leoneclient.features.SessionStats;
 import dev.alfxyz.leoneclient.features.Timers;
@@ -51,7 +52,7 @@ final class Overlays {
 
 	static List<Overlay> create() {
 		return List.of(new Watermark(), new ModuleList(), new ActionBarOverlay(), new CombatBarOverlay(), new Notifications(), new ServerOverlay(),
-			new TimersPanel(), new SessionStatsOverlay(), new StaffStatusOverlay(), new AnticheatPanel(), new CooldownsPanel(),
+			new TimersPanel(), new SessionStatsOverlay(), new StaffStatusOverlay(), new AnticheatPanel(), new CooldownsPanel(), new WebEscapeNote(),
 			new Fps(), new Ping(), new Coordinates(), new Speed(), new Cps(), new Keystrokes());
 	}
 
@@ -1018,6 +1019,82 @@ final class Overlays {
 			float tx = x + 2 + 16 + 9, maxW = w - (tx - x) - cw - 10;
 			c.text.draw(c.cv, c.text.fit(t.title, ROW_TITLE, maxW), tx, c.text.baselineFor(ROW_TITLE, y + 10), ROW_TITLE, Colors.TEXT);
 			c.text.draw(c.cv, c.text.fit(t.detail, ROW_TEXT, maxW), tx, c.text.baselineFor(ROW_TEXT, y + 25), ROW_TEXT, Colors.TEXT_HINT);
+		}
+	}
+
+	/** Web Escape's note about your own player while you are in a web: whether a rocket would get you out. */
+	static final class WebEscapeNote extends Overlay {
+		private static final Style NOTE = Style.of(12, Weight.SEMIBOLD);
+
+		WebEscapeNote() {
+			// just under the crosshair, where your eyes are when you are stuck
+			super("web_escape", "Web Escape", "Whether a rocket gets you out of a web", false, CENTER, CENTER, 0, 40);
+		}
+
+		@Override
+		public Module owner() {
+			return Modules.WEB_ESCAPE;
+		}
+
+		@Override
+		public boolean available() {
+			return Modules.WEB_ESCAPE.category.visible();
+		}
+
+		@Override
+		public boolean enabled() {
+			return Modules.WEB_ESCAPE.enabled() && Modules.WEB_ESCAPE.self.get() && available();
+		}
+
+		@Override
+		public void setEnabled(boolean on) {
+			Modules.WEB_ESCAPE.self.value = on;
+			if (on) Modules.WEB_ESCAPE.setEnabled(true);
+		}
+
+		@Override
+		public boolean background() {
+			return Modules.WEB_ESCAPE.noteBackground.get();
+		}
+
+		@Override
+		public boolean shown() {
+			WebEscape.State s = Modules.WEB_ESCAPE.yours();
+			return s != null && Modules.WEB_ESCAPE.noteFor(s);
+		}
+
+		/** Your state, or in Modify HUD with nothing to show, the blocked state as a sample. */
+		private WebEscape.State state(Context c) {
+			WebEscape.State s = Modules.WEB_ESCAPE.yours();
+			return s != null && Modules.WEB_ESCAPE.noteFor(s) || !c.editor ? (s == null ? WebEscape.State.OUT : s) : WebEscape.State.BLOCKED;
+		}
+
+		@Override
+		public float width(Context c) {
+			WebEscape.State s = state(c);
+			if (s == WebEscape.State.OUT) return 0;
+			String text = Modules.WEB_ESCAPE.noteText(s);
+			return text.isEmpty() ? 26 : 10 + 14 + 7 + c.text.width(text, NOTE) + 11;
+		}
+
+		@Override
+		public float height(Context c) {
+			return state(c) == WebEscape.State.OUT ? 0 : 26;
+		}
+
+		@Override
+		public void draw(Context c, float x, float y, float w, float h) {
+			WebEscape.State s = state(c);
+			if (s == WebEscape.State.OUT) return;
+			int color = Modules.WEB_ESCAPE.colour(s);
+			if (background()) {
+				c.cv.fillRoundRect(x, y, w, h, 8, Colors.glass(0.72f));
+				c.cv.borderRoundRect(x, y, w, h, 8, 1, Colors.rgba(color & 0xFFFFFF, 0.5f));
+			}
+			String text = Modules.WEB_ESCAPE.noteText(s);
+			float icon = 14, ix = text.isEmpty() ? x + (w - icon) / 2 : x + 10;
+			Gfx.icons().draw(c.cv, Icons.WEB, ix, y + (h - icon) / 2, icon, 1.8f, color);
+			if (!text.isEmpty()) c.text.draw(c.cv, text, ix + icon + 7, c.text.baselineFor(NOTE, y + h / 2), NOTE, color);
 		}
 	}
 
