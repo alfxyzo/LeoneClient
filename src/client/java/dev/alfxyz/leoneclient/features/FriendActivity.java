@@ -86,7 +86,7 @@ public final class FriendActivity extends Module {
 
 	private static Component compact(Event e, @Nullable Friend f) {
 		MutableComponent name = Component.literal(e.name()).withStyle(s -> s
-			.withColor(f != null ? f.color() : 0xFFFFFF)
+			.withColor(f != null ? Friends.color(f) : 0xFFFFFF)
 			.withClickEvent(new ClickEvent.SuggestCommand("/msg " + e.name() + " "))
 			.withHoverEvent(new HoverEvent.ShowText(Component.literal("Click to message " + e.name()))));
 		MutableComponent out = Component.literal(e.joined() ? "+ " : "- ").withColor(e.joined() ? JOIN : LEAVE).append(name);

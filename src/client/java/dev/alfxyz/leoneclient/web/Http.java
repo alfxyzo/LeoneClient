@@ -32,7 +32,8 @@ public final class Http {
 	private Http() {
 	}
 
-	public record Response(int status, byte[] body) {
+	/** A reply: its status, body, and for a 429 how many seconds to wait (0 when not given). */
+	public record Response(int status, byte[] body, long retryAfter) {
 		public String text() {
 			return new String(body, java.nio.charset.StandardCharsets.UTF_8);
 		}
@@ -118,6 +119,13 @@ public final class Http {
 			.header("Accept", accept)
 			.GET()
 			.build();
-		return client().sendAsync(req, HttpResponse.BodyHandlers.ofByteArray()).thenApply(r -> new Response(r.statusCode(), r.body()));
+		return client().sendAsync(req, HttpResponse.BodyHandlers.ofByteArray()).thenApply(r -> {
+			long wait = 0;
+			try {
+				wait = Long.parseLong(r.headers().firstValue("Retry-After").orElse("0").strip());
+			} catch (NumberFormatException ignored) {
+			}
+			return new Response(r.statusCode(), r.body(), wait);
+		});
 	}
 }

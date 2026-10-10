@@ -26,6 +26,8 @@ public final class Profiles {
 	private static final Set<UUID> inflight = new HashSet<>();
 	private static final Deque<UUID> queue = new ArrayDeque<>();
 	private static final Map<UUID, Long> failedAt = new HashMap<>();
+	/** Profiles asked for with their statistics, until fetched. */
+	private static final Set<UUID> withStats = new HashSet<>();
 
 	private Profiles() {
 	}
@@ -51,17 +53,28 @@ public final class Profiles {
 		return at != null && System.currentTimeMillis() - at < RETRY_FAILED_MS;
 	}
 
-	/** Makes sure a profile no older than {@code maxAgeMs} is cached or on its way. */
-	public static void want(UUID uuid, long maxAgeMs) {
+	/**
+	 * Makes sure a profile no older than {@code maxAgeMs} is cached or on its way; with {@code stats}, one
+	 * that has its statistics (a profile fetched only for someone's presence leaves them out).
+	 */
+	public static void want(UUID uuid, long maxAgeMs, boolean stats) {
 		Entry e = cache.get(uuid);
-		if (e != null && System.currentTimeMillis() - e.at() < maxAgeMs) return;
+		boolean enough = e != null && (e.missing() || !stats || e.profile() != null && e.profile().statsLoaded());
+		if (enough && System.currentTimeMillis() - e.at() < maxAgeMs) return;
+		if (stats) withStats.add(uuid);
 		if (loading(uuid) || failed(uuid)) return;
 		queue.addLast(uuid);
 		pump();
 	}
 
-	/** Stores a profile fetched elsewhere, so it is not fetched twice. */
+	/** Stores a profile fetched elsewhere, so it is not fetched twice; one without statistics keeps any already cached. */
 	public static void put(Profile profile) {
+		Entry old = cache.get(profile.uuid());
+		if (!profile.statsLoaded() && old != null && old.profile() != null && old.profile().statsLoaded()) {
+			Profile p = old.profile();
+			profile = new Profile(profile.uuid(), profile.name(), profile.color(), profile.rank(), profile.rankColor(), profile.friends(), profile.online(),
+				profile.server(), profile.lastSeen(), profile.joined(), profile.playtimeMs(), profile.views(), p.stats(), profile.fetched(), true);
+		}
 		cache.put(profile.uuid(), new Entry(profile, false, profile.fetched()));
 	}
 
@@ -69,7 +82,8 @@ public final class Profiles {
 		while (inflight.size() < MAX_CONCURRENT && !queue.isEmpty()) {
 			UUID uuid = queue.pollFirst();
 			inflight.add(uuid);
-			LeoneWeb.profile(uuid).whenComplete((result, err) -> Minecraft.getInstance().execute(() -> {
+			boolean stats = withStats.remove(uuid);
+			LeoneWeb.profile(uuid, stats).whenComplete((result, err) -> Minecraft.getInstance().execute(() -> {
 				inflight.remove(uuid);
 				if (err != null) {
 					failedAt.put(uuid, System.currentTimeMillis());

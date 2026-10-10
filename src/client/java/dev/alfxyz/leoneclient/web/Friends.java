@@ -150,6 +150,26 @@ public final class Friends {
 		return false;
 	}
 
+	/** A friend's name colour: their rank's colour from their own profile once loaded, else the one known before. */
+	public static int color(Friend f) {
+		Profile p = Profiles.get(f.uuid());
+		return p != null ? p.color() : f.color();
+	}
+
+	/** The API's friend entries carry no colour, so each keeps the one known from before (from their own profile, or saved). */
+	private static Profile withColours(Profile fresh) {
+		java.util.Map<UUID, Integer> known = new java.util.HashMap<>();
+		if (profile != null) for (Friend f : profile.friends()) known.put(f.uuid(), f.color());
+		List<Friend> friends = new ArrayList<>();
+		for (Friend f : fresh.friends()) {
+			Profile own = Profiles.get(f.uuid());
+			int c = own != null ? own.color() : known.getOrDefault(f.uuid(), f.color());
+			friends.add(new Friend(f.uuid(), f.name(), c, f.online(), f.status()));
+		}
+		return new Profile(fresh.uuid(), fresh.name(), fresh.color(), fresh.rank(), fresh.rankColor(), friends, fresh.online(), fresh.server(),
+			fresh.lastSeen(), fresh.joined(), fresh.playtimeMs(), fresh.views(), fresh.stats(), fresh.fetched(), fresh.statsLoaded());
+	}
+
 	/** Online according to whichever is newest: their own profile page, a chat message about them, or the friends list. */
 	public static boolean online(Friend f) {
 		Profile p = Profiles.get(f.uuid());
@@ -180,7 +200,7 @@ public final class Friends {
 
 	/** Keeps every friend's own profile fresh enough to show where they are or when they were last on. */
 	public static void wantPresence() {
-		for (Friend f : list()) Profiles.want(f.uuid(), online(f) ? 60_000 : 5 * 60_000);
+		for (Friend f : list()) Profiles.want(f.uuid(), online(f) ? 60_000 : 5 * 60_000, false);
 	}
 
 	/** Friends sorted online first, then by name. */
@@ -207,7 +227,7 @@ public final class Friends {
 		lastAttempt = now;
 		state = State.LOADING;
 		UUID uuid = accountUuid();
-		LeoneWeb.profile(uuid).whenComplete((result, err) -> Minecraft.getInstance().execute(() -> {
+		LeoneWeb.profile(uuid, false).whenComplete((result, err) -> Minecraft.getInstance().execute(() -> {
 			if (!uuid.equals(accountUuid())) {
 				state = State.IDLE;
 				return;
@@ -228,7 +248,7 @@ public final class Friends {
 			state = State.NOT_FOUND;
 			return;
 		}
-		profile = result.get();
+		profile = withColours(result.get());
 		Profiles.put(profile);
 		// show the account under the name the website uses, which can differ from the one typed
 		if (account != null && account.uuid().equals(profile.uuid()) && !profile.name().isEmpty()) account = new Player(account.uuid(), profile.name());
@@ -281,7 +301,7 @@ public final class Friends {
 					list.add(new Friend(UUID.fromString(f.get("uuid").getAsString()), f.get("name").getAsString(), f.get("color").getAsInt(), false, "Offline"));
 				}
 				profile = new Profile(UUID.fromString(pr.get("uuid").getAsString()), pr.get("name").getAsString(), pr.get("color").getAsInt(),
-					pr.get("rank").getAsString(), pr.get("rankColor").getAsInt(), list, false, null, 0, 0, 0, 0, List.of(), 0);
+					pr.get("rank").getAsString(), pr.get("rankColor").getAsInt(), list, false, null, 0, 0, 0, 0, List.of(), 0, false);
 				updated = pr.get("updated").getAsLong();
 				state = profile() != null ? State.READY : State.IDLE;
 			}

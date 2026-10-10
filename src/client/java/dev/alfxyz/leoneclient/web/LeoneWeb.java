@@ -22,31 +22,15 @@ import net.minecraft.client.multiplayer.PlayerInfo;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Reads player profiles from leonemc.net. Fetching a page does not count as a
- * profile view; the site counts views with a separate request from its own script.
+ * Reads players from LeoneMC's public API (leonemc.net/api/v1): who they are, their rank, whether and
+ * where they are online, their friends and their statistics. Name suggestions still come from the
+ * website's own search box, which the API does not offer. The API allows 120 requests a minute from
+ * each player's computer; a 429 pauses further calls for as long as it says.
  */
 public final class LeoneWeb {
-	private static final String HEX = "(#[0-9A-Fa-f]{3,8})";
-	private static final Pattern NAME = Pattern.compile("class=\"player-name\"(?:\\s+style=\"color:\\s*" + HEX + "[^\"]*\")?\\s*>([^<]*)<");
-	private static final Pattern RANK = Pattern.compile("class=\"player-rank-badge\"(?:\\s+style=\"background-color:\\s*" + HEX + "[^\"]*\")?\\s*>([^<]*)<");
-	private static final Pattern PRESENCE = Pattern.compile("<div class=\"player-presence([^\"]*)\">(.*?)</div>", Pattern.DOTALL);
-	private static final Pattern ONLINE_ON = Pattern.compile("Online on\\s*<strong>([^<]*)</strong>");
-	private static final Pattern TIMESTAMP = Pattern.compile("data-timestamp=\"([^\"]+)\"");
-	private static final Pattern JOINED = Pattern.compile("class=\"player-joined\">\\s*Joined\\s*<span data-date=\"([^\"]+)\"");
-	private static final Pattern PLAYTIME = Pattern.compile("data-minutes-played\\s+data-millis=\"(\\d+)\"");
-	private static final Pattern VIEWS = Pattern.compile("data-profile-views>(\\d+)<");
-	private static final Pattern CARD = Pattern.compile("<div class=\"player-stat-card\">(.*?)</ul>", Pattern.DOTALL);
-	private static final Pattern CARD_TITLE = Pattern.compile("player-stat-card-header\">\\s*<span>([^<]*)</span>");
-	private static final Pattern STAT = Pattern.compile("<li>(.*?)</li>", Pattern.DOTALL);
-	private static final Pattern STAT_LABEL = Pattern.compile("player-stat-label\">([^<]*)<");
-	private static final Pattern STAT_RANK = Pattern.compile("player-stat-rank\">([^<]*)<");
-	private static final Pattern STAT_VALUE = Pattern.compile("player-stat-badge\"(?:\\s+style=\"color:\\s*" + HEX + "[^\"]*\")?\\s*>([^<]*)<");
-	private static final Pattern FRIEND = Pattern.compile(
-		"<a\\s+href=\"/player/([0-9a-fA-F-]{36})\"\\s+class=\"friend-head([^\"]*)\"\\s*>(.*?)</a>", Pattern.DOTALL);
-	private static final Pattern FRIEND_NAME = Pattern.compile("friend-head-tooltip-name\"(?:\\s+style=\"color:\\s*" + HEX + "[^\"]*\")?\\s*>([^<]*)<");
-	private static final Pattern FRIEND_STATUS = Pattern.compile("friend-head-tooltip-status\"\\s*>([^<]*)<");
-	private static final Pattern ALT = Pattern.compile("alt=\"([^\"]*)\"");
-	private static final Pattern ENTITY = Pattern.compile("&(#\\d+|#x[0-9a-fA-F]+|amp|lt|gt|quot|apos);");
+	private static final String API = LeoneMC.WEBSITE + "/api/v1";
+	/** After a 429, no API calls until this time (epoch ms). */
+	private static volatile long pausedUntil;
 
 	private LeoneWeb() {
 	}
@@ -61,11 +45,13 @@ public final class LeoneWeb {
 	}
 
 	/**
-	 * A player's profile. {@code server} is set while online (when the site knows it),
-	 * {@code lastSeen} while offline; both in UTC milliseconds or 0 when unknown.
+	 * A player's profile. {@code server} is set while online (when known), {@code lastSeen} while offline;
+	 * both in UTC milliseconds or 0 when unknown. {@code statsLoaded} says whether {@code stats} was asked
+	 * for, as a profile fetched for someone's presence leaves them out.
 	 */
 	public record Profile(UUID uuid, String name, int color, String rank, int rankColor, List<Friend> friends,
-		boolean online, @Nullable String server, long lastSeen, long joined, long playtimeMs, int views, List<StatCard> stats, long fetched) {
+		boolean online, @Nullable String server, long lastSeen, long joined, long playtimeMs, int views, List<StatCard> stats, long fetched,
+		boolean statsLoaded) {
 	}
 
 	public record Player(UUID uuid, String name) {
@@ -75,12 +61,133 @@ public final class LeoneWeb {
 		return LeoneMC.WEBSITE + "/player/" + uuid;
 	}
 
-	/** Fetches a profile. Completes with empty when the player has never joined LeoneMC. */
+	/** Fetches a profile with its statistics. Completes with empty when the player has never joined LeoneMC. */
 	public static CompletableFuture<Optional<Profile>> profile(UUID uuid) {
-		return Http.get(profileUrl(uuid), "text/html").thenApply(r -> {
-			if (r.status() == 404) return Optional.empty();
-			if (r.status() != 200) throw new IllegalStateException("leonemc.net answered " + r.status());
-			return Optional.of(parseProfile(uuid, r.text()));
+		return profile(uuid, true);
+	}
+
+	/** Fetches a profile, with or without statistics (one request fewer). Empty when the player has never joined. */
+	public static CompletableFuture<Optional<Profile>> profile(UUID uuid, boolean withStats) {
+		CompletableFuture<Http.Response> player = api("/players/" + uuid);
+		CompletableFuture<Http.@Nullable Response> stats = withStats ? api("/players/" + uuid + "/statistics") : CompletableFuture.completedFuture(null);
+		return player.thenCombine(stats, (p, st) -> {
+			if (p.status() == 404) return Optional.empty();
+			check(p);
+			JsonObject o = JsonParser.parseString(p.text()).getAsJsonObject();
+			List<StatCard> cards = new ArrayList<>();
+			if (st != null && st.status() == 200) cards = statCards(JsonParser.parseString(st.text()).getAsJsonObject());
+			return Optional.of(parsePlayer(uuid, o, cards, st != null && st.status() == 200));
+		});
+	}
+
+	private static CompletableFuture<Http.Response> api(String path) {
+		if (System.currentTimeMillis() < pausedUntil) return CompletableFuture.failedFuture(new IllegalStateException("LeoneMC's API asked us to wait"));
+		return Http.get(API + path, "application/json").thenApply(r -> {
+			if (r.status() == 429) pausedUntil = System.currentTimeMillis() + Math.max(5, r.retryAfter()) * 1000;
+			return r;
+		});
+	}
+
+	/** Throws for anything but a 200, with the API's own message when it gives one. */
+	private static void check(Http.Response r) {
+		if (r.status() == 200) return;
+		String message = "leonemc.net answered " + r.status();
+		try {
+			JsonObject e = JsonParser.parseString(r.text()).getAsJsonObject();
+			if (e.has("message")) message = e.get("message").getAsString();
+		} catch (RuntimeException ignored) {
+		}
+		throw new IllegalStateException(message);
+	}
+
+	private static Profile parsePlayer(UUID uuid, JsonObject o, List<StatCard> stats, boolean statsLoaded) {
+		String name = str(o, "name", "");
+		String rank = "";
+		int rankColor = 0x888888;
+		if (o.has("rank") && o.get("rank").isJsonObject()) {
+			JsonObject r = o.getAsJsonObject("rank");
+			rank = str(r, "name", "");
+			rankColor = hex(str(r, "color", null), 0x888888);
+		}
+		// the API has no name colour of its own; on LeoneMC a name takes its rank's colour
+		int color = rank.isEmpty() ? 0xFFFFFF : rankColor;
+		boolean online = o.has("online") && !o.get("online").isJsonNull() && o.get("online").getAsBoolean();
+		String server = str(o, "server", null);
+		List<Friend> friends = new ArrayList<>();
+		if (o.has("friends") && o.get("friends").isJsonArray()) {
+			for (JsonElement e : o.getAsJsonArray("friends")) {
+				if (!e.isJsonObject()) continue;
+				JsonObject f = e.getAsJsonObject();
+				try {
+					boolean on = f.has("online") && f.get("online").getAsBoolean();
+					friends.add(new Friend(UUID.fromString(f.get("uuid").getAsString()), f.get("name").getAsString(), 0xFFFFFF, on, on ? "Online" : "Offline"));
+				} catch (RuntimeException ignored) {
+				}
+			}
+		}
+		return new Profile(uuid, name, color, rank, rankColor, friends, online, online ? server : null, time(str(o, "lastSeen", null)),
+			time(str(o, "firstJoin", null)), 0, 0, stats, System.currentTimeMillis(), statsLoaded);
+	}
+
+	/** One card per server, in the API's order, each stat with its place on that server's leaderboard. */
+	private static List<StatCard> statCards(JsonObject o) {
+		List<StatCard> cards = new ArrayList<>();
+		if (!o.has("statistics") || !o.get("statistics").isJsonArray()) return cards;
+		String current = null;
+		List<Stat> stats = null;
+		java.text.NumberFormat places = java.text.NumberFormat.getIntegerInstance(Locale.UK);
+		for (JsonElement e : o.getAsJsonArray("statistics")) {
+			if (!e.isJsonObject()) continue;
+			JsonObject s = e.getAsJsonObject();
+			String server = str(s, "server", "");
+			if (!server.equals(current)) {
+				current = server;
+				stats = new ArrayList<>();
+				cards.add(new StatCard(server, stats));
+			}
+			String rank = s.has("rank") && !s.get("rank").isJsonNull() ? "#" + places.format(s.get("rank").getAsLong()) : "";
+			stats.add(new Stat(str(s, "name", ""), rank, str(s, "display", ""), 0xFFFFFF));
+		}
+		return cards;
+	}
+
+	private static @Nullable String str(JsonObject o, String key, @Nullable String fallback) {
+		return o.has(key) && !o.get(key).isJsonNull() ? o.get(key).getAsString() : fallback;
+	}
+
+	private static long time(@Nullable String iso) {
+		if (iso == null || iso.isBlank()) return 0;
+		try {
+			return Instant.parse(iso).toEpochMilli();
+		} catch (RuntimeException e) {
+			return 0;
+		}
+	}
+
+	private static int hex(@Nullable String s, int fallback) {
+		if (s == null) return fallback;
+		String h = s.strip();
+		if (h.startsWith("#")) h = h.substring(1);
+		if (h.length() == 3) h = "" + h.charAt(0) + h.charAt(0) + h.charAt(1) + h.charAt(1) + h.charAt(2) + h.charAt(2);
+		if (h.length() == 8) h = h.substring(0, 6);
+		try {
+			return h.length() == 6 ? Integer.parseInt(h, 16) : fallback;
+		} catch (NumberFormatException e) {
+			return fallback;
+		}
+	}
+
+	/** The player with exactly this name (any case) on LeoneMC, from the API; empty when nobody has it. */
+	private static CompletableFuture<Optional<Player>> byExactName(String name) {
+		if (!USERNAME.matcher(name).matches()) return CompletableFuture.completedFuture(Optional.empty());
+		return api("/players/" + name).handle((r, err) -> {
+			if (err != null || r.status() != 200) return Optional.<Player>empty();
+			try {
+				JsonObject o = JsonParser.parseString(r.text()).getAsJsonObject();
+				return Optional.of(new Player(UUID.fromString(o.get("uuid").getAsString()), o.get("name").getAsString()));
+			} catch (RuntimeException e) {
+				return Optional.<Player>empty();
+			}
 		});
 	}
 
@@ -132,7 +239,8 @@ public final class LeoneWeb {
 			for (Player p : exact) if (preferred.contains(p.uuid())) return CompletableFuture.completedFuture(Optional.of(p));
 			if (!exact.isEmpty()) return CompletableFuture.completedFuture(Optional.of(exact.getFirst()));
 			if (onServer != null) return CompletableFuture.completedFuture(Optional.of(onServer));
-			return mojang(name).thenApply(found -> found.isPresent() || list.isEmpty() ? found : Optional.of(list.getFirst()));
+			return byExactName(name).thenCompose(api -> api.isPresent() ? CompletableFuture.completedFuture(api)
+				: mojang(name).thenApply(found -> found.isPresent() || list.isEmpty() ? found : Optional.of(list.getFirst())));
 		});
 	}
 
@@ -150,145 +258,5 @@ public final class LeoneWeb {
 				return Optional.<Player>empty();
 			}
 		});
-	}
-
-	static Profile parseProfile(UUID uuid, String html) {
-		String name = "";
-		int color = 0xFFFFFF;
-		Matcher m = NAME.matcher(html);
-		if (m.find()) {
-			name = unescape(m.group(2)).strip();
-			color = hex(m.group(1), 0xFFFFFF);
-		}
-		String rank = "";
-		int rankColor = 0x888888;
-		m = RANK.matcher(html);
-		if (m.find()) {
-			rank = unescape(m.group(2)).strip();
-			rankColor = hex(m.group(1), 0x888888);
-		}
-		boolean online = false;
-		String server = null;
-		long lastSeen = 0;
-		m = PRESENCE.matcher(html);
-		if (m.find()) {
-			online = m.group(1).contains("online");
-			String body = m.group(2);
-			Matcher on = ONLINE_ON.matcher(body);
-			if (on.find()) server = unescape(on.group(1)).strip();
-			Matcher ts = TIMESTAMP.matcher(body);
-			if (!online && ts.find()) lastSeen = instant(ts.group(1));
-		}
-		m = JOINED.matcher(html);
-		long joined = m.find() ? instant(m.group(1)) : 0;
-		m = PLAYTIME.matcher(html);
-		long playtime = m.find() ? Long.parseLong(m.group(1)) : 0;
-		m = VIEWS.matcher(html);
-		int views = m.find() ? Integer.parseInt(m.group(1)) : 0;
-		return new Profile(uuid, name, color, rank, rankColor, friends(html), online, server, lastSeen, joined, playtime, views, stats(html),
-			System.currentTimeMillis());
-	}
-
-	private static List<StatCard> stats(String html) {
-		List<StatCard> cards = new ArrayList<>();
-		Matcher card = CARD.matcher(html);
-		while (card.find()) {
-			String body = card.group(1);
-			Matcher t = CARD_TITLE.matcher(body);
-			if (!t.find()) continue;
-			List<Stat> stats = new ArrayList<>();
-			Matcher li = STAT.matcher(body);
-			while (li.find()) {
-				String item = li.group(1);
-				Matcher label = STAT_LABEL.matcher(item), rank = STAT_RANK.matcher(item), value = STAT_VALUE.matcher(item);
-				if (!label.find() || !value.find()) continue;
-				stats.add(new Stat(unescape(label.group(1)).strip(), rank.find() ? unescape(rank.group(1)).strip() : "",
-					unescape(value.group(2)).strip(), hex(value.group(1), 0xEDEDED)));
-			}
-			if (!stats.isEmpty()) cards.add(new StatCard(unescape(t.group(1)).strip(), stats));
-		}
-		return cards;
-	}
-
-	private static List<Friend> friends(String html) {
-		List<Friend> friends = new ArrayList<>();
-		Matcher m = FRIEND.matcher(html);
-		while (m.find()) {
-			UUID id;
-			try {
-				id = UUID.fromString(m.group(1));
-			} catch (IllegalArgumentException e) {
-				continue;
-			}
-			String classes = m.group(2), body = m.group(3);
-			String fname = null;
-			int fcolor = 0xFFFFFF;
-			Matcher n = FRIEND_NAME.matcher(body);
-			if (n.find()) {
-				fname = unescape(n.group(2)).strip();
-				fcolor = hex(n.group(1), 0xFFFFFF);
-			}
-			if (fname == null || fname.isEmpty()) {
-				Matcher a = ALT.matcher(body);
-				if (!a.find()) continue;
-				fname = unescape(a.group(1)).strip();
-			}
-			Matcher s = FRIEND_STATUS.matcher(body);
-			String status = s.find() ? unescape(s.group(1)).strip() : "";
-			String lower = status.toLowerCase(Locale.ROOT);
-			boolean online = classes.contains("online") && !classes.contains("offline") || lower.startsWith("online");
-			friends.add(new Friend(id, fname, fcolor, online, status));
-		}
-		return friends;
-	}
-
-	private static long instant(String iso) {
-		try {
-			return Instant.parse(iso).toEpochMilli();
-		} catch (RuntimeException e) {
-			return 0;
-		}
-	}
-
-	static int hex(@Nullable String s, int fallback) {
-		if (s == null) return fallback;
-		String h = s.startsWith("#") ? s.substring(1) : s;
-		try {
-			if (h.length() == 3) {
-				h = "" + h.charAt(0) + h.charAt(0) + h.charAt(1) + h.charAt(1) + h.charAt(2) + h.charAt(2);
-			}
-			if (h.length() == 8) h = h.substring(0, 6);
-			if (h.length() != 6) return fallback;
-			return Integer.parseInt(h, 16);
-		} catch (NumberFormatException e) {
-			return fallback;
-		}
-	}
-
-	static String unescape(String s) {
-		if (s.indexOf('&') < 0) return s;
-		Matcher m = ENTITY.matcher(s);
-		StringBuilder sb = new StringBuilder();
-		while (m.find()) {
-			String e = m.group(1);
-			String rep = switch (e) {
-				case "amp" -> "&";
-				case "lt" -> "<";
-				case "gt" -> ">";
-				case "quot" -> "\"";
-				case "apos" -> "'";
-				default -> {
-					try {
-						int cp = e.startsWith("#x") ? Integer.parseInt(e.substring(2), 16) : Integer.parseInt(e.substring(1));
-						yield new String(Character.toChars(cp));
-					} catch (RuntimeException ex) {
-						yield m.group();
-					}
-				}
-			};
-			m.appendReplacement(sb, Matcher.quoteReplacement(rep));
-		}
-		m.appendTail(sb);
-		return sb.toString();
 	}
 }

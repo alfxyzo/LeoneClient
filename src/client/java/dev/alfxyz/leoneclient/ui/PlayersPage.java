@@ -66,7 +66,7 @@ final class PlayersPage extends Page {
 		shownName = name;
 		mode = 0;
 		scroll.snap(0);
-		Profiles.want(uuid, 60_000);
+		Profiles.want(uuid, 60_000, true);
 	}
 
 	@Override
@@ -210,7 +210,7 @@ final class PlayersPage extends Page {
 			}
 			return;
 		}
-		Profiles.want(shown, 60_000);
+		Profiles.want(shown, 60_000, true);
 		Profile p = Profiles.get(shown);
 		float py = cy + 18;
 		final float cardY = py;

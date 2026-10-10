@@ -288,7 +288,7 @@ final class FriendsPage extends Page {
 		if (ao > 0) maxW -= 30 * ao + (online ? 32 * ao : 0);
 		float lh = ui.text.lineHeight(Ui.TILE), sh = ui.text.lineHeight(Ui.SMALL);
 		float top = y + (TILE_H - lh - sh) / 2;
-		int nameColor = 0xFF000000 | f.color();
+		int nameColor = 0xFF000000 | Friends.color(f);
 		ui.text.draw(ui.cv, ui.text.fit(f.name(), Ui.BODY_STRONG, maxW), tx, top + ui.text.ascent(Ui.TILE), Ui.BODY_STRONG, online ? nameColor : Colors.lerp(nameColor, Colors.TEXT_HINT, 0.4f));
 		String server = online ? Friends.server(f) : null;
 		long seen = online ? 0 : Friends.lastSeen(f);

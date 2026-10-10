@@ -63,7 +63,7 @@ public final class FriendHighlight extends Module {
 
 	private static Component details(String name) {
 		Friend f = Friends.byName(name);
-		MutableComponent c = Component.literal(f != null ? f.name() : name).withColor(f != null ? f.color() : 0xFFFFFF)
+		MutableComponent c = Component.literal(f != null ? f.name() : name).withColor(f != null ? Friends.color(f) : 0xFFFFFF)
 			.append(Component.literal("  LeoneMC friend").withStyle(ChatFormatting.GRAY));
 		if (f == null) return c;
 		String where;
