@@ -67,15 +67,20 @@ public final class Profiles {
 		pump();
 	}
 
-	/** Stores a profile fetched elsewhere, so it is not fetched twice; one without statistics keeps any already cached. */
+	/** Stores a profile fetched elsewhere, so it is not fetched twice. */
 	public static void put(Profile profile) {
-		Entry old = cache.get(profile.uuid());
-		if (!profile.statsLoaded() && old != null && old.profile() != null && old.profile().statsLoaded()) {
-			Profile p = old.profile();
-			profile = new Profile(profile.uuid(), profile.name(), profile.color(), profile.rank(), profile.rankColor(), profile.friends(), profile.online(),
-				profile.server(), profile.lastSeen(), profile.joined(), profile.playtimeMs(), profile.views(), p.stats(), profile.fetched(), true);
-		}
-		cache.put(profile.uuid(), new Entry(profile, false, profile.fetched()));
+		cache.put(profile.uuid(), new Entry(keep(profile), false, profile.fetched()));
+	}
+
+	/** A lighter profile (no statistics or page extras) keeps those from the cached one, so they do not flicker away. */
+	private static Profile keep(Profile p) {
+		Entry old = cache.get(p.uuid());
+		Profile o = old == null ? null : old.profile();
+		if (o == null || (p.statsLoaded() || !o.statsLoaded()) && (p.pageLoaded() || !o.pageLoaded())) return p;
+		boolean stats = !p.statsLoaded() && o.statsLoaded(), page = !p.pageLoaded() && o.pageLoaded();
+		return new Profile(p.uuid(), p.name(), page ? o.color() : p.color(), p.rank(), p.rankColor(), p.friends(), p.online(), p.server(), p.lastSeen(),
+			p.joined(), page ? o.playtimeMs() : p.playtimeMs(), page ? o.views() : p.views(), stats ? o.stats() : p.stats(), p.fetched(),
+			p.statsLoaded() || o.statsLoaded(), p.pageLoaded() || o.pageLoaded());
 	}
 
 	private static void pump() {
@@ -83,13 +88,14 @@ public final class Profiles {
 			UUID uuid = queue.pollFirst();
 			inflight.add(uuid);
 			boolean stats = withStats.remove(uuid);
-			LeoneWeb.profile(uuid, stats).whenComplete((result, err) -> Minecraft.getInstance().execute(() -> {
+			// the Players page shows everything; presence needs only the API
+			LeoneWeb.profile(uuid, stats, stats).whenComplete((result, err) -> Minecraft.getInstance().execute(() -> {
 				inflight.remove(uuid);
 				if (err != null) {
 					failedAt.put(uuid, System.currentTimeMillis());
 				} else {
 					failedAt.remove(uuid);
-					cache.put(uuid, new Entry(result.orElse(null), result.isEmpty(), System.currentTimeMillis()));
+					cache.put(uuid, new Entry(result.map(Profiles::keep).orElse(null), result.isEmpty(), System.currentTimeMillis()));
 				}
 				pump();
 			}));

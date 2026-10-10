@@ -156,8 +156,9 @@ public final class Friends {
 		return p != null ? p.color() : f.color();
 	}
 
-	/** The API's friend entries carry no colour, so each keeps the one known from before (from their own profile, or saved). */
+	/** Without the page's colours (it did not load), each friend keeps the one known from before (their own profile, or saved). */
 	private static Profile withColours(Profile fresh) {
+		if (fresh.pageLoaded()) return fresh;
 		java.util.Map<UUID, Integer> known = new java.util.HashMap<>();
 		if (profile != null) for (Friend f : profile.friends()) known.put(f.uuid(), f.color());
 		List<Friend> friends = new ArrayList<>();
@@ -167,7 +168,7 @@ public final class Friends {
 			friends.add(new Friend(f.uuid(), f.name(), c, f.online(), f.status()));
 		}
 		return new Profile(fresh.uuid(), fresh.name(), fresh.color(), fresh.rank(), fresh.rankColor(), friends, fresh.online(), fresh.server(),
-			fresh.lastSeen(), fresh.joined(), fresh.playtimeMs(), fresh.views(), fresh.stats(), fresh.fetched(), fresh.statsLoaded());
+			fresh.lastSeen(), fresh.joined(), fresh.playtimeMs(), fresh.views(), fresh.stats(), fresh.fetched(), fresh.statsLoaded(), false);
 	}
 
 	/** Online according to whichever is newest: their own profile page, a chat message about them, or the friends list. */
@@ -227,7 +228,8 @@ public final class Friends {
 		lastAttempt = now;
 		state = State.LOADING;
 		UUID uuid = accountUuid();
-		LeoneWeb.profile(uuid, false).whenComplete((result, err) -> Minecraft.getInstance().execute(() -> {
+		// the friends list from the API, and their name colours from the page
+		LeoneWeb.profile(uuid, false, true).whenComplete((result, err) -> Minecraft.getInstance().execute(() -> {
 			if (!uuid.equals(accountUuid())) {
 				state = State.IDLE;
 				return;
@@ -301,7 +303,7 @@ public final class Friends {
 					list.add(new Friend(UUID.fromString(f.get("uuid").getAsString()), f.get("name").getAsString(), f.get("color").getAsInt(), false, "Offline"));
 				}
 				profile = new Profile(UUID.fromString(pr.get("uuid").getAsString()), pr.get("name").getAsString(), pr.get("color").getAsInt(),
-					pr.get("rank").getAsString(), pr.get("rankColor").getAsInt(), list, false, null, 0, 0, 0, 0, List.of(), 0, false);
+					pr.get("rank").getAsString(), pr.get("rankColor").getAsInt(), list, false, null, 0, 0, 0, 0, List.of(), 0, false, true);
 				updated = pr.get("updated").getAsLong();
 				state = profile() != null ? State.READY : State.IDLE;
 			}

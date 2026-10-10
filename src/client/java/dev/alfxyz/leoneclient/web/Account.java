@@ -70,7 +70,7 @@ public final class Account {
 		if (loading || !force && isSelf() && System.currentTimeMillis() - checked < REFRESH_MS) return;
 		loading = true;
 		UUID me = self();
-		LeoneWeb.profile(me, false).whenComplete((result, err) -> Minecraft.getInstance().execute(() -> {
+		LeoneWeb.profile(me, false, false).whenComplete((result, err) -> Minecraft.getInstance().execute(() -> {
 			loading = false;
 			if (err != null) return;
 			uuid = me;

@@ -23,8 +23,9 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Reads players from LeoneMC's public API (leonemc.net/api/v1): who they are, their rank, whether and
- * where they are online, their friends and their statistics. Name suggestions still come from the
- * website's own search box, which the API does not offer. The API allows 120 requests a minute from
+ * where they are online, their friends and their statistics. What the API does not have yet (name
+ * colours, network playtime, profile views, stat value colours) still comes from the player's page,
+ * and name suggestions from the website's search box. The API allows 120 requests a minute from
  * each player's computer; a 429 pauses further calls for as long as it says.
  */
 public final class LeoneWeb {
@@ -47,11 +48,12 @@ public final class LeoneWeb {
 	/**
 	 * A player's profile. {@code server} is set while online (when known), {@code lastSeen} while offline;
 	 * both in UTC milliseconds or 0 when unknown. {@code statsLoaded} says whether {@code stats} was asked
-	 * for, as a profile fetched for someone's presence leaves them out.
+	 * for, and {@code pageLoaded} whether the page's extras were (colours, playtime, views): a profile
+	 * fetched only for someone's presence leaves both out.
 	 */
 	public record Profile(UUID uuid, String name, int color, String rank, int rankColor, List<Friend> friends,
 		boolean online, @Nullable String server, long lastSeen, long joined, long playtimeMs, int views, List<StatCard> stats, long fetched,
-		boolean statsLoaded) {
+		boolean statsLoaded, boolean pageLoaded) {
 	}
 
 	public record Player(UUID uuid, String name) {
@@ -61,23 +63,48 @@ public final class LeoneWeb {
 		return LeoneMC.WEBSITE + "/player/" + uuid;
 	}
 
-	/** Fetches a profile with its statistics. Completes with empty when the player has never joined LeoneMC. */
+	/** Fetches everything about a player: the API's profile and statistics, and the page's extras. Empty when they never joined. */
 	public static CompletableFuture<Optional<Profile>> profile(UUID uuid) {
-		return profile(uuid, true);
+		return profile(uuid, true, true);
 	}
 
-	/** Fetches a profile, with or without statistics (one request fewer). Empty when the player has never joined. */
-	public static CompletableFuture<Optional<Profile>> profile(UUID uuid, boolean withStats) {
+	/**
+	 * Fetches a profile from the API, with or without its statistics, and with or without the extras only
+	 * the player's page has (name colours, playtime, views, stat colours). The page is a bonus: if it fails,
+	 * the API's answer is used on its own. Empty when the player has never joined.
+	 */
+	public static CompletableFuture<Optional<Profile>> profile(UUID uuid, boolean withStats, boolean withPage) {
 		CompletableFuture<Http.Response> player = api("/players/" + uuid);
 		CompletableFuture<Http.@Nullable Response> stats = withStats ? api("/players/" + uuid + "/statistics") : CompletableFuture.completedFuture(null);
+		CompletableFuture<ProfilePage.@Nullable Extras> page = withPage
+			? Http.get(profileUrl(uuid), "text/html").handle((r, err) -> err != null || r.status() != 200 ? null : ProfilePage.read(r.text()))
+			: CompletableFuture.completedFuture(null);
 		return player.thenCombine(stats, (p, st) -> {
-			if (p.status() == 404) return Optional.empty();
+			if (p.status() == 404) return Optional.<Profile>empty();
 			check(p);
 			JsonObject o = JsonParser.parseString(p.text()).getAsJsonObject();
 			List<StatCard> cards = new ArrayList<>();
 			if (st != null && st.status() == 200) cards = statCards(JsonParser.parseString(st.text()).getAsJsonObject());
 			return Optional.of(parsePlayer(uuid, o, cards, st != null && st.status() == 200));
-		});
+		}).thenCombine(page, (found, extras) -> found.map(p -> extras == null ? p : withExtras(p, extras)));
+	}
+
+	/** The API's profile with the page's colours, playtime and views added. */
+	private static Profile withExtras(Profile p, ProfilePage.Extras x) {
+		List<Friend> friends = new ArrayList<>();
+		for (Friend f : p.friends()) friends.add(new Friend(f.uuid(), f.name(), x.friendColours().getOrDefault(f.uuid(), f.color()), f.online(), f.status()));
+		List<StatCard> cards = new ArrayList<>();
+		for (StatCard c : p.stats()) {
+			List<Stat> stats = new ArrayList<>();
+			for (Stat s : c.stats()) {
+				Integer colour = x.statColour(c.title(), s.label(), s.value());
+				stats.add(colour == null ? s : new Stat(s.label(), s.rank(), s.value(), colour));
+			}
+			cards.add(new StatCard(c.title(), stats));
+		}
+		int color = x.nameColour() != null ? x.nameColour() : p.color();
+		return new Profile(p.uuid(), p.name(), color, p.rank(), p.rankColor(), friends, p.online(), p.server(), p.lastSeen(), p.joined(),
+			x.playtimeMs(), x.views(), cards, p.fetched(), p.statsLoaded(), true);
 	}
 
 	private static CompletableFuture<Http.Response> api(String path) {
@@ -126,7 +153,7 @@ public final class LeoneWeb {
 			}
 		}
 		return new Profile(uuid, name, color, rank, rankColor, friends, online, online ? server : null, time(str(o, "lastSeen", null)),
-			time(str(o, "firstJoin", null)), 0, 0, stats, System.currentTimeMillis(), statsLoaded);
+			time(str(o, "firstJoin", null)), 0, 0, stats, System.currentTimeMillis(), statsLoaded, false);
 	}
 
 	/** One card per server, in the API's order, each stat with its place on that server's leaderboard. */
