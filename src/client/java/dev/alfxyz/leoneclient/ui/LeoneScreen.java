@@ -90,6 +90,10 @@ public class LeoneScreen extends Screen {
 	private final Anim ringRot = new Anim(0);
 	private final Anim groupX = new Anim(0);
 	private final Anim groupScale = new Anim(1);
+	/** How far a settings page taller than the screen is scrolled, in design px. */
+	private final Anim settingsScroll = new Anim(0);
+	/** The tallest the panel gets before its settings page scrolls, in design px (clear of the dock). */
+	private static final float MAX_PANEL_H = 780;
 	private final Anim pointer = new Anim(0);
 	private final Anim pointerOpacity = new Anim(0);
 	private final Anim arcOpacity = new Anim(0);
@@ -654,9 +658,15 @@ public class LeoneScreen extends Screen {
 		return shownPage().height(ui);
 	}
 
+	/** How far the settings page can scroll: how much taller it is than the panel allows. */
+	private float settingsOverflow() {
+		return settingsFor == null ? 0 : Math.max(0, contentHeight() + PANEL_PAD * 2 + 2 - MAX_PANEL_H);
+	}
+
 	private void drawPanel(Canvas cv, double now) {
 		if (!panelShown) return;
-		float h = contentHeight() + PANEL_PAD * 2 + 2;
+		float overflow = settingsOverflow();
+		float h = Math.min(contentHeight() + PANEL_PAD * 2 + 2, settingsFor != null ? MAX_PANEL_H : Float.MAX_VALUE);
 		float top = CY - h / 2;
 		float alpha, tx, clip;
 		if (panelOut) {
@@ -681,8 +691,23 @@ public class LeoneScreen extends Screen {
 		float x0 = PANEL_X + 1 + PANEL_PAD, y0 = top + 1 + PANEL_PAD;
 		ui.interactive = !panelOut && !closing();
 		ui.hit(PANEL_X, top, PANEL_W, h, null, null);
-		if (settingsFor != null) settingsView.draw(ui, x0, y0, settingsFor, settingsAt);
-		else shownPage().draw(ui, x0, y0);
+		if (settingsFor != null && overflow > 0) {
+			// too tall for the screen: the page scrolls inside the panel, and only what is visible can be clicked
+			float off = Math.min(settingsScroll.get(now), overflow);
+			cv.push();
+			cv.clipRect(PANEL_X + 1, top + 1, PANEL_X + PANEL_W - 1, top + h - 1);
+			ui.clip = new float[] {cv.tx(PANEL_X, top), cv.ty(PANEL_X, top), cv.tx(PANEL_X + PANEL_W, top + h), cv.ty(PANEL_X + PANEL_W, top + h)};
+			cv.translate(0, -off);
+			settingsView.draw(ui, x0, y0, settingsFor, settingsAt);
+			cv.pop();
+			ui.clip = null;
+			float track = h - 24, thumb = Math.max(40, track * (h / (h + overflow))), ty = top + 12 + (track - thumb) * (off / overflow);
+			cv.fillRoundRect(PANEL_X + PANEL_W - 8, ty, 4, thumb, 2, Colors.white(0.22f));
+		} else if (settingsFor != null) {
+			settingsView.draw(ui, x0, y0, settingsFor, settingsAt);
+		} else {
+			shownPage().draw(ui, x0, y0);
+		}
 		cv.pop();
 	}
 
@@ -899,6 +924,7 @@ public class LeoneScreen extends Screen {
 
 	void openSettings(Module m) {
 		settingsFor = m;
+		settingsScroll.snap(0);
 		settingsAt = now();
 		binding = null;
 		ui.focused = null;
@@ -1086,7 +1112,13 @@ public class LeoneScreen extends Screen {
 	public boolean mouseScrolled(double x, double y, double scrollX, double scrollY) {
 		if (closing()) return false;
 		boolean overPanel = panelShown && !panelOut && x >= panelRect[0] && x < panelRect[2] && y >= panelRect[1] && y < panelRect[3];
-		if (overPanel) return settingsFor == null && shownPage().scroll(scrollY);
+		if (overPanel && settingsFor != null) {
+			float overflow = settingsOverflow();
+			if (overflow <= 0) return false;
+			settingsScroll.set(Math.max(0, Math.min(overflow, settingsScroll.target() - (float) scrollY * 60)), now(), 180, Ease.SNAP);
+			return true;
+		}
+		if (overPanel) return shownPage().scroll(scrollY);
 		if (scrollY != 0 && overWheel(x, y)) {
 			spinWheel(scrollY);
 			return true;

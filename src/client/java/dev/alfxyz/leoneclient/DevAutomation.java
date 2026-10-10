@@ -445,7 +445,17 @@ public final class DevAutomation {
 			WebEscape.debugGliding = true;
 		});
 		shot(500, "57-web-can-escape");
+		at(100, "web: settings", mc -> {
+			mc.options.setCameraType(net.minecraft.client.CameraType.FIRST_PERSON);
+			mc.gui.setScreen(new LeoneScreen());
+		});
+		at(800, "web: segment", mc -> click(mc, screen(mc).debugSegment(Category.shown().size() - 1), 0));
+		at(700, "web: open settings", mc -> screen(mc).debugSettings(Modules.WEB_ESCAPE));
+		shot(900, "58-web-settings-top");
+		at(100, "web: scroll", mc -> { float[] p = screen(mc).debugPanel(300, 300); screen(mc).mouseScrolled(p[0], p[1], 0, -10); });
+		shot(700, "59-web-settings-bottom");
 		at(100, "web: done", mc -> {
+			mc.gui.setScreen(null);
 			mc.options.setCameraType(net.minecraft.client.CameraType.FIRST_PERSON);
 			WebEscape.debugGliding = false;
 			WebEscape.debugIncludeSelf = false;

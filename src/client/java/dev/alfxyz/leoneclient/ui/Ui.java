@@ -111,8 +111,15 @@ public final class Ui {
 
 	// -------------------------------------------------------------- input
 
+	/** While set, {x0, y0, x1, y1} in GUI px: only this part of the screen can be hovered or clicked (a scrolled area). */
+	public float @Nullable [] clip;
+
+	private boolean inClip(double gx, double gy) {
+		return clip == null || gx >= clip[0] && gx < clip[2] && gy >= clip[1] && gy < clip[3];
+	}
+
 	public boolean hovered(float x, float y, float w, float h) {
-		if (!interactive) return false;
+		if (!interactive || !inClip(mouseX, mouseY)) return false;
 		float[] p = cv.toLocal((float) mouseX, (float) mouseY);
 		return p[0] >= x && p[0] < x + w && p[1] >= y && p[1] < y + h;
 	}
@@ -124,7 +131,16 @@ public final class Ui {
 	private void hit(float x, float y, float w, float h, @Nullable Runnable left, @Nullable Runnable right, @Nullable TextInput input) {
 		if (!interactive) return;
 		float ax = cv.tx(x, y), ay = cv.ty(x, y), bx = cv.tx(x + w, y + h), by = cv.ty(x + w, y + h);
-		Hit hit = new Hit(Math.min(ax, bx), Math.min(ay, by), Math.max(ax, bx), Math.max(ay, by), left, right, input);
+		float x0 = Math.min(ax, bx), y0 = Math.min(ay, by), x1 = Math.max(ax, bx), y1 = Math.max(ay, by);
+		if (clip != null) {
+			// scrolled out of sight: only the visible part can be clicked
+			x0 = Math.max(x0, clip[0]);
+			y0 = Math.max(y0, clip[1]);
+			x1 = Math.min(x1, clip[2]);
+			y1 = Math.min(y1, clip[3]);
+			if (x1 <= x0 || y1 <= y0) return;
+		}
+		Hit hit = new Hit(x0, y0, x1, y1, left, right, input);
 		hits.add(hit);
 		if (hit.contains(mouseX, mouseY)) {
 			if (input != null) wantText = true;
