@@ -23,6 +23,7 @@ import dev.alfxyz.leoneclient.features.ModModeStatus;
 import dev.alfxyz.leoneclient.features.PackWarnings;
 import dev.alfxyz.leoneclient.features.PlayerLookup;
 import dev.alfxyz.leoneclient.features.Reports;
+import dev.alfxyz.leoneclient.features.RocketCheck;
 import dev.alfxyz.leoneclient.features.SessionStats;
 import dev.alfxyz.leoneclient.features.StaffChatModule;
 import dev.alfxyz.leoneclient.features.Timers;
@@ -51,6 +52,7 @@ public final class Modules {
 	public static final AutoReconnect AUTO_RECONNECT = new AutoReconnect();
 	public static final ItemCooldowns ITEM_COOLDOWNS = new ItemCooldowns();
 	public static final WebEscape WEB_ESCAPE = new WebEscape();
+	public static final RocketCheck ROCKET_CHECK = new RocketCheck();
 	public static final EnderChestPages ENDER_CHEST_PAGES = new EnderChestPages();
 	public static final Interface INTERFACE = new Interface();
 	public static final AllServers ALL_SERVERS = new AllServers();
@@ -69,7 +71,7 @@ public final class Modules {
 		INTERFACE, ALL_SERVERS, LOG_FILTER,
 		STAFF_CHAT, ANTICHEAT_ALERTS, REPORTS, MOD_MODE,
 		// LeoneMC servers, each only on its own server
-		ITEM_COOLDOWNS, WEB_ESCAPE);
+		ITEM_COOLDOWNS, WEB_ESCAPE, ROCKET_CHECK);
 
 	private Modules() {
 	}

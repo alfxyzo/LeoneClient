@@ -7,6 +7,7 @@ import dev.alfxyz.leoneclient.anim.Ease;
 import dev.alfxyz.leoneclient.features.ActionBars;
 import dev.alfxyz.leoneclient.features.AnticheatAlerts;
 import dev.alfxyz.leoneclient.features.ItemCooldowns;
+import dev.alfxyz.leoneclient.features.RocketCheck;
 import dev.alfxyz.leoneclient.features.WebEscape;
 import dev.alfxyz.leoneclient.features.ModModeStatus;
 import dev.alfxyz.leoneclient.features.SessionStats;
@@ -52,7 +53,7 @@ final class Overlays {
 
 	static List<Overlay> create() {
 		return List.of(new Watermark(), new ModuleList(), new ActionBarOverlay(), new CombatBarOverlay(), new Notifications(), new ServerOverlay(),
-			new TimersPanel(), new SessionStatsOverlay(), new StaffStatusOverlay(), new AnticheatPanel(), new CooldownsPanel(), new WebEscapeNote(),
+			new TimersPanel(), new SessionStatsOverlay(), new StaffStatusOverlay(), new AnticheatPanel(), new CooldownsPanel(), new WebEscapeNote(), new RocketCheckPanel(),
 			new Fps(), new Ping(), new Coordinates(), new Speed(), new Cps(), new Keystrokes());
 	}
 
@@ -1095,6 +1096,101 @@ final class Overlays {
 			float icon = 14, ix = text.isEmpty() ? x + (w - icon) / 2 : x + 10;
 			Gfx.icons().draw(c.cv, Icons.WEB, ix, y + (h - icon) / 2, icon, 1.8f, color);
 			if (!text.isEmpty()) c.text.draw(c.cv, text, ix + icon + 7, c.text.baselineFor(NOTE, y + h / 2), NOTE, color);
+		}
+	}
+
+	/** Rocket Check's flags: who boosted with a rocket while looking at a block, how often, and at what. */
+	static final class RocketCheckPanel extends Panel {
+		/** How long a row glows red after a new flag. */
+		private static final double FLASH_MS = 1600;
+		private static final float HEAD = 24;
+
+		RocketCheckPanel() {
+			// left middle, under where the Anticheat Panel sits
+			super("rocket_check", "Rocket Check", "Players who rocketed into a wall", START, CENTER, 8, 90);
+		}
+
+		@Override
+		public Module owner() {
+			return Modules.ROCKET_CHECK;
+		}
+
+		@Override
+		public boolean available() {
+			return Modules.ROCKET_CHECK.category.visible();
+		}
+
+		@Override
+		public boolean enabled() {
+			return Modules.ROCKET_CHECK.enabled() && available();
+		}
+
+		@Override
+		public void setEnabled(boolean on) {
+			Modules.ROCKET_CHECK.setEnabled(on);
+		}
+
+		@Override
+		public boolean shown() {
+			return !Modules.ROCKET_CHECK.recent().isEmpty();
+		}
+
+		private static final RocketCheck.Suspect SAMPLE = new RocketCheck.Suspect(new java.util.UUID(0, 0), "Player");
+
+		static {
+			SAMPLE.count = 3;
+			SAMPLE.block = "Stone";
+			SAMPLE.distance = 2.4;
+		}
+
+		private List<RocketCheck.Suspect> list(Context c) {
+			List<RocketCheck.Suspect> l = Modules.ROCKET_CHECK.recent();
+			if (l.isEmpty() && c.editor) {
+				SAMPLE.lastAt = System.currentTimeMillis() - 12_000;
+				return List.of(SAMPLE);
+			}
+			return l.subList(0, Math.min(Math.round(Modules.ROCKET_CHECK.panelPlayers.get()), l.size()));
+		}
+
+		@Override
+		int rows(Context c) {
+			return list(c).size();
+		}
+
+		@Override
+		float rowHeight() {
+			return 38;
+		}
+
+		@Override
+		String title() {
+			return "ROCKET CHECK";
+		}
+
+		@Override
+		void row(Context c, int i, float x, float y, float w) {
+			RocketCheck.Suspect s = list(c).get(i);
+			double age = System.currentTimeMillis() - s.lastAt;
+			if (age < FLASH_MS) {
+				// a new flag glows red and fades, so it catches the eye
+				float glow = 1 - (float) (age / FLASH_MS);
+				c.cv.fillRoundRect(x - 4, y - 2, w + 8, rowHeight() - 2, 8, Colors.rgba(BAD & 0xFFFFFF, 0.28f * glow));
+			}
+			if (s == SAMPLE) {
+				c.cv.fillRoundRect(x + 1, y + 5, HEAD, HEAD, 6, Colors.rgba(BAD & 0xFFFFFF, 0.22f));
+				Gfx.icons().draw(c.cv, Icons.ROCKET, x + 5, y + 9, 16, 1.8f, BAD);
+			} else {
+				Heads.draw(c.cv, c.text, s.uuid, s.name, x + 1, y + 5, HEAD, 6);
+			}
+			float tx = x + 1 + HEAD + 9, tw = w - (tx - x);
+			String count = "×" + s.count;
+			float cw = c.text.width(count, ROW_TITLE);
+			c.text.draw(c.cv, c.text.fit(s.name, ROW_TITLE, tw - cw - 8), tx, c.text.baselineFor(ROW_TITLE, y + 10), ROW_TITLE, Colors.TEXT);
+			c.text.draw(c.cv, count, x + w - cw, c.text.baselineFor(ROW_TITLE, y + 10), ROW_TITLE, BAD);
+			String when = Time.ago(s.lastAt);
+			float aw = c.text.width(when, ROW_TEXT);
+			c.text.draw(c.cv, c.text.fit(RocketCheck.detail(s), ROW_TEXT, tw - aw - 10), tx, c.text.baselineFor(ROW_TEXT, y + 26), ROW_TEXT, Colors.TEXT_MUTED);
+			c.text.draw(c.cv, when, x + w - aw, c.text.baselineFor(ROW_TEXT, y + 26), ROW_TEXT, Colors.TEXT_HINT);
 		}
 	}
 

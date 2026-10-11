@@ -8,6 +8,7 @@ import dev.alfxyz.leoneclient.features.AutoReconnect;
 import dev.alfxyz.leoneclient.features.ChatTabs;
 import dev.alfxyz.leoneclient.features.ItemCooldowns;
 import dev.alfxyz.leoneclient.features.Timers;
+import dev.alfxyz.leoneclient.features.RocketCheck;
 import dev.alfxyz.leoneclient.features.WebEscape;
 import dev.alfxyz.leoneclient.module.Category;
 import dev.alfxyz.leoneclient.mixin.ChatHistoryAccessor;
@@ -462,6 +463,75 @@ public final class DevAutomation {
 			command(mc, "setblock " + webFeet.getX() + " " + webFeet.getY() + " " + webFeet.getZ() + " minecraft:air");
 			command(mc, "execute at @p run tp @p ~ ~-40 ~");
 			Modules.WEB_ESCAPE.reset();
+			Category.pretendServer = null;
+			Modules.ALL_SERVERS.setEnabled(false);
+		});
+	}
+
+	private static net.minecraft.core.BlockPos rocketBase = net.minecraft.core.BlockPos.ZERO;
+
+	/**
+	 * Rocket Check on your own player: glide at a stone wall and boost anyway (as a cheat does: straight to
+	 * "use item", whatever the crosshair is on), then boost facing open sky, which must not flag.
+	 */
+	private static void rocketChecks() {
+		at(200, "rocket: set up", mc -> {
+			Modules.ALL_SERVERS.setEnabled(true);
+			Category.pretendServer = "ElytraBox";
+			Modules.ROCKET_CHECK.setEnabled(true);
+			RocketCheck.debugIncludeSelf = true;
+			command(mc, "item replace entity @p armor.chest with minecraft:elytra");
+			command(mc, "item replace entity @p weapon.mainhand with minecraft:firework_rocket 16");
+			// a stone wall high in the sky, three blocks north of where you will be
+			rocketBase = net.minecraft.core.BlockPos.containing(mc.player.position());
+			command(mc, "fill " + (rocketBase.getX() - 3) + " " + (rocketBase.getY() + 60) + " " + (rocketBase.getZ() - 4) + " "
+				+ (rocketBase.getX() + 3) + " " + (rocketBase.getY() + 90) + " " + (rocketBase.getZ() - 4) + " minecraft:stone");
+		});
+		at(800, "rocket: face the wall", mc -> command(mc, "tp @p " + (rocketBase.getX() + 0.5) + " " + (rocketBase.getY() + 84) + " " + (rocketBase.getZ() + 0.5) + " 180 0"));
+		at(700, "rocket: aim", mc -> {
+			RocketCheck.Aim a = RocketCheck.aimNow(mc.player, 0.3);
+			check("facing the wall: the crosshair is on it, within reach (" + a + ")", a != null && a.block().equals("Stone") && a.distance() < 4.5);
+			RocketCheck.Aim up = RocketCheck.aim(mc.player, mc.player.position(), 180, -70, 0.3);
+			check("looking up at the sky: on air (" + up + ")", up == null);
+			mc.player.connection.send(new net.minecraft.network.protocol.game.ServerboundPlayerCommandPacket(mc.player,
+				net.minecraft.network.protocol.game.ServerboundPlayerCommandPacket.Action.START_FALL_FLYING));
+			mc.player.startFallFlying();
+		});
+		at(150, "rocket: boost into the wall", mc -> {
+			LOGGER.info("Leone autotest: gliding = {}", mc.player.isFallFlying());
+			mc.gameMode.useItem(mc.player, net.minecraft.world.InteractionHand.MAIN_HAND);
+		});
+		at(700, "rocket: flagged", mc -> {
+			var l = Modules.ROCKET_CHECK.recent();
+			check("boosting while looking at the wall is flagged (" + l.size() + " flagged)", l.size() == 1 && l.getFirst().count == 1);
+			if (!l.isEmpty()) LOGGER.info("Leone autotest: rocket flag = {}", RocketCheck.detail(l.getFirst()));
+		});
+		shot(300, "60-rocket-flagged");
+		at(100, "rocket: face away", mc -> command(mc, "tp @p " + (rocketBase.getX() + 0.5) + " " + (rocketBase.getY() + 84) + " " + (rocketBase.getZ() + 0.5) + " 0 0"));
+		at(500, "rocket: glide again", mc -> {
+			check("facing away: on air (" + RocketCheck.aimNow(mc.player, 0.3) + ")", RocketCheck.aimNow(mc.player, 0.3) == null);
+			mc.player.connection.send(new net.minecraft.network.protocol.game.ServerboundPlayerCommandPacket(mc.player,
+				net.minecraft.network.protocol.game.ServerboundPlayerCommandPacket.Action.START_FALL_FLYING));
+			mc.player.startFallFlying();
+		});
+		at(150, "rocket: boost into the sky", mc -> mc.gameMode.useItem(mc.player, net.minecraft.world.InteractionHand.MAIN_HAND));
+		at(700, "rocket: not flagged", mc -> {
+			var l = Modules.ROCKET_CHECK.recent();
+			check("boosting at open sky is not flagged (still " + (l.isEmpty() ? 0 : l.getFirst().count) + ")", l.size() == 1 && l.getFirst().count == 1);
+		});
+		at(100, "rocket: settings", mc -> mc.gui.setScreen(new LeoneScreen()));
+		at(800, "rocket: segment", mc -> click(mc, screen(mc).debugSegment(Category.shown().size() - 1), 0));
+		at(700, "rocket: open settings", mc -> screen(mc).debugSettings(Modules.ROCKET_CHECK));
+		shot(900, "61-rocket-settings");
+		at(100, "rocket: done", mc -> {
+			mc.gui.setScreen(null);
+			RocketCheck.debugIncludeSelf = false;
+			command(mc, "fill " + (rocketBase.getX() - 3) + " " + (rocketBase.getY() + 60) + " " + (rocketBase.getZ() - 4) + " "
+				+ (rocketBase.getX() + 3) + " " + (rocketBase.getY() + 90) + " " + (rocketBase.getZ() - 4) + " minecraft:air");
+			command(mc, "item replace entity @p armor.chest with minecraft:air");
+			command(mc, "item replace entity @p weapon.mainhand with minecraft:air");
+			command(mc, "tp @p " + (rocketBase.getX() + 0.5) + " " + rocketBase.getY() + " " + (rocketBase.getZ() + 0.5));
+			Modules.ROCKET_CHECK.reset();
 			Category.pretendServer = null;
 			Modules.ALL_SERVERS.setEnabled(false);
 		});
@@ -944,6 +1014,7 @@ public final class DevAutomation {
 		networkChecks();
 		serverChecks();
 		webChecks();
+		rocketChecks();
 
 		// a full atlas is wiped before the next frame, and drawing carries on (heads, icons and text come back)
 		at(200, "atlas: fill it", mc -> {

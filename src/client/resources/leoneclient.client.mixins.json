@@ -9,6 +9,7 @@
 		"ChatTabsMixin",
 		"ClientPacketListenerMixin",
 		"DisconnectedScreenAccessor",
+		"FireworkRocketAccessor",
 		"GameRendererMixin",
 		"HudMixin",
 		"ItemDecorationsMixin",
