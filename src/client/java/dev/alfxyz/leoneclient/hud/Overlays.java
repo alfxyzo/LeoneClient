@@ -838,7 +838,7 @@ final class Overlays {
 	// ------------------------------------------------------------- panels
 
 	/** A glass panel with a small caps title, used by the list overlays. */
-	abstract static class Panel extends Overlay {
+	abstract static class Panel<T> extends Overlay {
 		protected static final Style CAPS = new Style(10.5f, Weight.SEMIBOLD, 0.06f);
 		protected static final Style ROW_TITLE = Style.of(12.5f, Weight.SEMIBOLD);
 		protected static final Style ROW_TEXT = Style.of(11, Weight.REGULAR);
@@ -848,13 +848,18 @@ final class Overlays {
 			super(id, name, description, false, ax, ay, ox, oy);
 		}
 
-		abstract int rows(Context c);
+		/** The rows to show now. Lists built from timers can change between calls, so draw reads it once a frame. */
+		abstract List<T> list(Context c);
+
+		int rows(Context c) {
+			return list(c).size();
+		}
 
 		abstract float rowHeight();
 
 		abstract String title();
 
-		abstract void row(Context c, int i, float x, float y, float w);
+		abstract void row(Context c, T item, float x, float y, float w);
 
 		@Override
 		public float width(Context c) {
@@ -869,16 +874,16 @@ final class Overlays {
 
 		@Override
 		public void draw(Context c, float x, float y, float w, float h) {
-			int n = rows(c);
-			if (n == 0) return;
+			List<T> items = list(c);
+			if (items.isEmpty()) return;
 			c.cv.fillRoundRect(x, y, w, h, 12, Colors.glass(0.7f));
 			c.cv.borderRoundRect(x, y, w, h, 12, 1, Colors.white(0.08f));
 			c.text.draw(c.cv, title(), x + PAD + 2, c.text.baselineFor(CAPS, y + HEAD / 2 + 1), CAPS, Colors.TEXT_HINT);
-			for (int i = 0; i < n; i++) row(c, i, x + PAD, y + HEAD + i * rowHeight(), w - 2 * PAD);
+			for (int i = 0; i < items.size(); i++) row(c, items.get(i), x + PAD, y + HEAD + i * rowHeight(), w - 2 * PAD);
 		}
 	}
 
-	static final class AnticheatPanel extends Panel {
+	static final class AnticheatPanel extends Panel<AnticheatAlerts.Suspect> {
 		AnticheatPanel() {
 			super("anticheat_panel", "Anticheat Panel", "Players flagged recently", START, CENTER, 8, -60);
 		}
@@ -908,7 +913,8 @@ final class Overlays {
 			return !Modules.ANTICHEAT_ALERTS.recent().isEmpty();
 		}
 
-		private List<AnticheatAlerts.Suspect> list(Context c) {
+		@Override
+		List<AnticheatAlerts.Suspect> list(Context c) {
 			List<AnticheatAlerts.Suspect> l = Modules.ANTICHEAT_ALERTS.recent();
 			if (l.isEmpty() && c.editor) {
 				AnticheatAlerts.Suspect s = new AnticheatAlerts.Suspect("Player");
@@ -923,11 +929,6 @@ final class Overlays {
 		}
 
 		@Override
-		int rows(Context c) {
-			return list(c).size();
-		}
-
-		@Override
 		float rowHeight() {
 			return 38;
 		}
@@ -938,8 +939,7 @@ final class Overlays {
 		}
 
 		@Override
-		void row(Context c, int i, float x, float y, float w) {
-			AnticheatAlerts.Suspect s = list(c).get(i);
+		void row(Context c, AnticheatAlerts.Suspect s, float x, float y, float w) {
 			String count = "×" + s.total;
 			float cw = c.text.width(count, ROW_TITLE);
 			c.text.draw(c.cv, c.text.fit(s.name, ROW_TITLE, w - cw - 8), x + 2, c.text.baselineFor(ROW_TITLE, y + 10), ROW_TITLE, Colors.TEXT);
@@ -956,7 +956,7 @@ final class Overlays {
 		}
 	}
 
-	static final class TimersPanel extends Panel {
+	static final class TimersPanel extends Panel<Timers.Countdown> {
 		TimersPanel() {
 			// top right: the right-hand middle is where LeoneMC's sidebar is
 			super("timers", "Timers", "Event and restart countdowns", END, START, 8, 8);
@@ -982,18 +982,14 @@ final class Overlays {
 			return !Modules.TIMERS.list().isEmpty();
 		}
 
-		private List<Timers.Countdown> list(Context c) {
+		@Override
+		List<Timers.Countdown> list(Context c) {
 			List<Timers.Countdown> l = Modules.TIMERS.list();
 			if (l.isEmpty() && c.editor) return List.of(SAMPLE);
 			return l.subList(0, Math.min(Math.round(Modules.TIMERS.shownAtOnce.get()), l.size()));
 		}
 
 		private static final Timers.Countdown SAMPLE = new Timers.Countdown(Timers.Kind.EVENT, "Lava Rising", "EU · EU West · 2,500 gems", Long.MAX_VALUE / 2);
-
-		@Override
-		int rows(Context c) {
-			return list(c).size();
-		}
 
 		@Override
 		float rowHeight() {
@@ -1006,8 +1002,7 @@ final class Overlays {
 		}
 
 		@Override
-		void row(Context c, int i, float x, float y, float w) {
-			Timers.Countdown t = list(c).get(i);
+		void row(Context c, Timers.Countdown t, float x, float y, float w) {
 			boolean restart = t.kind == Timers.Kind.RESTART, targetRow = t.kind == Timers.Kind.TARGET;
 			long left = t == SAMPLE ? 7 * 60_000 + 30_000 : t.endsAt - System.currentTimeMillis();
 			int color = restart || targetRow ? 0xFFF87171 : left < 60_000 ? 0xFFFBBF24 : Colors.ACCENT;
@@ -1100,7 +1095,7 @@ final class Overlays {
 	}
 
 	/** Rocket Check's flags: who boosted with a rocket while looking at a block, how often, and at what. */
-	static final class RocketCheckPanel extends Panel {
+	static final class RocketCheckPanel extends Panel<RocketCheck.Suspect> {
 		/** How long a row glows red after a new flag. */
 		private static final double FLASH_MS = 1600;
 		private static final float HEAD = 24;
@@ -1143,18 +1138,14 @@ final class Overlays {
 			SAMPLE.distance = 2.4;
 		}
 
-		private List<RocketCheck.Suspect> list(Context c) {
+		@Override
+		List<RocketCheck.Suspect> list(Context c) {
 			List<RocketCheck.Suspect> l = Modules.ROCKET_CHECK.recent();
 			if (l.isEmpty() && c.editor) {
 				SAMPLE.lastAt = System.currentTimeMillis() - 12_000;
 				return List.of(SAMPLE);
 			}
 			return l.subList(0, Math.min(Math.round(Modules.ROCKET_CHECK.panelPlayers.get()), l.size()));
-		}
-
-		@Override
-		int rows(Context c) {
-			return list(c).size();
 		}
 
 		@Override
@@ -1168,8 +1159,7 @@ final class Overlays {
 		}
 
 		@Override
-		void row(Context c, int i, float x, float y, float w) {
-			RocketCheck.Suspect s = list(c).get(i);
+		void row(Context c, RocketCheck.Suspect s, float x, float y, float w) {
 			double age = System.currentTimeMillis() - s.lastAt;
 			if (age < FLASH_MS) {
 				// a new flag glows red and fades, so it catches the eye
@@ -1195,7 +1185,7 @@ final class Overlays {
 	}
 
 	/** ElytraBox's item cooldowns: the item, its name, a bar running down and the time left. */
-	static final class CooldownsPanel extends Panel {
+	static final class CooldownsPanel extends Panel<ItemCooldowns.Tracker> {
 		CooldownsPanel() {
 			// bottom right: clear of the hotbar and of chat on the left, wherever the eye is in a fight
 			super("item_cooldowns", "Item Cooldowns", "ElytraBox item cooldowns", END, END, 8, 8);
@@ -1226,14 +1216,10 @@ final class Overlays {
 			return !Modules.ITEM_COOLDOWNS.shown().isEmpty();
 		}
 
-		private List<ItemCooldowns.Tracker> list(Context c) {
+		@Override
+		List<ItemCooldowns.Tracker> list(Context c) {
 			List<ItemCooldowns.Tracker> l = Modules.ITEM_COOLDOWNS.shown();
 			return l.isEmpty() && c.editor ? List.of(Modules.ITEM_COOLDOWNS.trackers.getFirst()) : l;
-		}
-
-		@Override
-		int rows(Context c) {
-			return list(c).size();
 		}
 
 		@Override
@@ -1247,8 +1233,7 @@ final class Overlays {
 		}
 
 		@Override
-		void row(Context c, int i, float x, float y, float w) {
-			ItemCooldowns.Tracker t = list(c).get(i);
+		void row(Context c, ItemCooldowns.Tracker t, float x, float y, float w) {
 			// in Modify HUD with nothing running, a Cage part way through shows what the panel looks like
 			boolean sample = c.editor && Modules.ITEM_COOLDOWNS.shown().isEmpty();
 			boolean ready = !t.running() && !sample;
