@@ -1106,8 +1106,8 @@ final class Overlays {
 		private static final float HEAD = 24;
 
 		RocketCheckPanel() {
-			// left middle, under where the Anticheat Panel sits
-			super("rocket_check", "Rocket Check", "Players who rocketed into a wall", START, CENTER, 8, 90);
+			// top left, under Session Stats: clear of chat, which covers the lower left in a fight
+			super("rocket_check", "Rocket Check", "Players who rocketed into a wall", START, START, 8, 270);
 		}
 
 		@Override
