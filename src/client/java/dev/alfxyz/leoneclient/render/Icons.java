@@ -73,6 +73,7 @@ public final class Icons {
 	public static final String FILTER = "M3 6h18 M7 12h10 M10 18h4";
 	public static final String COPY = "M10 8h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2Z M4 16a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2";
 	public static final String WEB = "M12 2v20 M2 12h20 M5 5L19 19 M19 5L5 19 M12 7L15.5 8.5L17 12L15.5 15.5L12 17L8.5 15.5L7 12L8.5 8.5Z";
+	public static final String ROCKET = "M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0 M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5";
 	public static final String MESSAGES = "M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1";
 
 	private record Key(String path, int sizeQ, int strokeQ) {
