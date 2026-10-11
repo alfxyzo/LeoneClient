@@ -39,6 +39,13 @@ public final class TextInput {
 		touch();
 	}
 
+	/** Selects the whole value, so the next character typed replaces it. */
+	public void selectAll() {
+		allSelected = true;
+		caret = value.length();
+		touch();
+	}
+
 	public void clear() {
 		set("");
 	}

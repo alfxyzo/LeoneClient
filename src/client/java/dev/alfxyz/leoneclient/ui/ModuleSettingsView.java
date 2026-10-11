@@ -14,7 +14,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
@@ -29,6 +32,15 @@ final class ModuleSettingsView {
 	private static final float IW = COL_W - 2 - 28;
 	private final LeoneScreen screen;
 	private final Map<Setting.Text, TextInput> inputs = new HashMap<>();
+	/** The slider whose value is being typed, and the field it is typed into. */
+	private Setting.@Nullable Slider editing;
+	private final TextInput editInput = new TextInput(12, c -> Character.isDigit(c) || c == '.' || c == ',' || c == '-');
+	/** When the reset button was first clicked, per module; a second click within RESET_CONFIRM_MS resets. */
+	private final Map<String, Double> resetArmed = new HashMap<>();
+	private static final double RESET_CONFIRM_MS = 3000;
+	/** For the autotest: where each slider and the reset button were last drawn, in GUI coordinates. */
+	final Map<Setting.Slider, float[]> drawnSliders = new HashMap<>();
+	float @Nullable [] resetCentre;
 
 	private record Card(@Nullable String group, List<Setting> settings, boolean core, float h) {
 	}
@@ -151,6 +163,7 @@ final class ModuleSettingsView {
 		ui.cv.borderRoundRect(x0, y0, 38, 38, 11, 1, Colors.white(0.1f));
 		ui.icons.draw(ui.cv, Icons.BACK, x0 + 11, y0 + 11, 16, 2, Colors.TEXT);
 		ui.hit(x0, y0, 38, 38, screen::closeSettings, null);
+		if (!m.settings.isEmpty()) resetButton(ui, x0 + Page.W, y0 + 5, m);
 		float tx = x0 + 50, ty = y0;
 		ui.text.draw(ui.cv, m.breadcrumb(), tx, ty + ui.text.ascent(Ui.HINT), Ui.HINT, Colors.TEXT_HINT);
 		ty += ui.text.lineHeight(Ui.HINT) + 4;
@@ -173,6 +186,29 @@ final class ModuleSettingsView {
 		}
 		ty += ui.text.lineHeight(Ui.H2) + 6;
 		ui.paragraph(m.description, Ui.DESC, tx, ty, descWidth(), 3, Colors.TEXT_MUTED);
+	}
+
+	/** Puts the module's settings back to their defaults, after a second click to confirm. */
+	private void resetButton(Ui ui, float right, float y, Module m) {
+		Double armedAt = resetArmed.get(m.key());
+		boolean armed = armedAt != null && ui.now - armedAt < RESET_CONFIRM_MS;
+		if (!armed) resetArmed.remove(m.key());
+		String label = armed ? "Click again to reset" : "Reset to defaults";
+		float bw = ui.buttonWidth(label, Icons.REFRESH, Ui.BUTTON);
+		resetCentre = new float[] {ui.cv.tx(right - bw / 2, y + 14), ui.cv.ty(right - bw / 2, y + 14)};
+		ui.button(m.key() + "#reset_settings", right - bw, y, 28, label, Icons.REFRESH, armed ? Ui.Btn.DANGER : Ui.Btn.GHOST, true, () -> {
+			if (!armed) {
+				resetArmed.put(m.key(), ui.now);
+				return;
+			}
+			resetArmed.remove(m.key());
+			editing = null;
+			ui.focused = null;
+			for (Setting s : m.settings) s.reset();
+			LeoneConfig.save();
+		});
+		ui.tip(right - bw, y, bw, 28, "Puts every setting on this page back to its default. Whether " + m.name
+			+ " is on, its keybind and its place on the HUD stay as they are.");
 	}
 
 	private void emptyCard(Ui ui, float x, float y, Module m) {
@@ -339,10 +375,33 @@ final class ModuleSettingsView {
 	private void slider(Ui ui, Setting.Slider sl, float ix, float cy) {
 		float bh = ui.text.lineHeight(Ui.VALUE) + 6;
 		ui.text.draw(ui.cv, sl.name, ix, ui.text.baselineFor(Ui.BODY, cy + bh / 2), Ui.BODY, Colors.TEXT);
-		String v = sl.display();
-		float vw = ui.text.width(v, Ui.VALUE) + 16;
-		ui.cv.fillRoundRect(ix + IW - vw, cy, vw, bh, 6, Colors.white(0.07f));
-		ui.text.draw(ui.cv, v, ix + IW - vw + 8, ui.text.baselineFor(Ui.VALUE, cy + bh / 2), Ui.VALUE, Colors.TEXT);
+		if (editing == sl && ui.focused != editInput) commitEdit();
+		if (editing == sl) {
+			// typing a value: the badge becomes a field, applied on Enter or a click elsewhere
+			String v = editInput.value();
+			String unit = unit(sl);
+			float fw = Math.max(64, ui.text.width(v, Ui.VALUE) + ui.text.width(unit, Ui.VALUE) + 22);
+			float fx = ix + IW - fw;
+			ui.cv.fillRoundRect(fx, cy, fw, bh, 6, Colors.white(0.1f));
+			ui.cv.borderRoundRect(fx, cy, fw, bh, 6, 1, Colors.accent(0.6f));
+			float base = ui.text.baselineFor(Ui.VALUE, cy + bh / 2), tx = fx + 8;
+			if (editInput.allSelected()) ui.cv.fillRoundRect(tx - 1, cy + 3, ui.text.width(v, Ui.VALUE) + 2, bh - 6, 3, Colors.accent(0.45f));
+			ui.text.draw(ui.cv, v, tx, base, Ui.VALUE, Colors.TEXT);
+			ui.text.draw(ui.cv, unit, fx + fw - 8 - ui.text.width(unit, Ui.VALUE), base, Ui.VALUE, Colors.TEXT_HINT);
+			double since = ui.now - editInput.lastActivity;
+			if (!editInput.allSelected() && (since < 500 || ((long) ((since - 500) / 530)) % 2 == 1)) {
+				float caretX = tx + ui.text.width(v.substring(0, editInput.caret()), Ui.VALUE);
+				ui.cv.fillRect(caretX, cy + 4, caretX + 1.5f, cy + bh - 4, Colors.WHITE);
+			}
+			ui.hit(fx, cy, fw, bh, () -> screen.focus(editInput), null);
+		} else {
+			String v = sl.display();
+			float vw = ui.text.width(v, Ui.VALUE) + 16;
+			boolean hov = ui.hovered(ix + IW - vw, cy, vw, bh);
+			ui.cv.fillRoundRect(ix + IW - vw, cy, vw, bh, 6, Colors.white(hov ? 0.12f : 0.07f));
+			ui.text.draw(ui.cv, v, ix + IW - vw + 8, ui.text.baselineFor(Ui.VALUE, cy + bh / 2), Ui.VALUE, Colors.TEXT);
+			ui.hit(ix + IW - vw, cy, vw, bh, () -> startEdit(sl), null);
+		}
 		float sy = cy + bh + 12;
 		float frac = sl.fraction();
 		ui.cv.fillRoundRect(ix, sy + 5, IW, 6, 3, Colors.white(0.1f));
@@ -351,7 +410,44 @@ final class ModuleSettingsView {
 		ui.cv.discGlow(kx, sy + 8, 8, 5, Colors.accent(0.7f));
 		ui.cv.fillCircle(kx, sy + 8, 11, Colors.glass(0.9f));
 		ui.cv.fillCircle(kx, sy + 8, 8, Colors.WHITE);
-		ui.hit(ix - 8, sy - 4, IW + 16, 24, () -> screen.beginDrag(ui.cv, sl, ix, IW), null);
+		float gx0 = ui.cv.tx(ix, sy), gx1 = ui.cv.tx(ix + IW, sy);
+		float bcx = ix + IW - 20, bcy = cy + bh / 2;
+		drawnSliders.put(sl, new float[] {gx0, gx1, ui.cv.ty(ix, sy + 8), ui.cv.tx(bcx, bcy), ui.cv.ty(bcx, bcy)});
+		ui.hit(ix - 8, sy - 4, IW + 16, 24, () -> screen.beginDrag(sl, gx0, gx1), null);
+	}
+
+	// ------------------------------------------------------- typed slider values
+
+	/** Matches the number in a slider's format, such as "%.2f" in "%.2f s". */
+	private static final Pattern NUMBER_FORMAT = Pattern.compile("%[-+ 0,(#]*\\d*(\\.\\d+)?f");
+
+	private void startEdit(Setting.Slider sl) {
+		if (editing != null && editing != sl) commitEdit();
+		if (editing != sl) {
+			editing = sl;
+			Matcher fm = NUMBER_FORMAT.matcher(sl.format);
+			editInput.set(String.format(Locale.ROOT, fm.find() ? fm.group() : "%s", sl.value));
+			editInput.selectAll();
+		}
+		screen.focus(editInput);
+	}
+
+	/** Applies the typed value, kept within the slider's range and steps; anything that is not a number is ignored. */
+	private void commitEdit() {
+		Setting.Slider sl = editing;
+		editing = null;
+		if (sl == null) return;
+		try {
+			sl.set(Float.parseFloat(editInput.value().replace(',', '.').trim()));
+		} catch (NumberFormatException ignored) {
+			// left as it was
+		}
+	}
+
+	/** What follows the number in a slider's value, such as " s" or " blocks". */
+	private static String unit(Setting.Slider sl) {
+		Matcher fm = NUMBER_FORMAT.matcher(sl.format);
+		return fm.find() ? sl.format.substring(fm.end()).replace("%%", "%").trim() : "";
 	}
 
 	private void chips(Ui ui, Setting s, Module m, float ix, float cy) {

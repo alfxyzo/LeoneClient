@@ -949,10 +949,15 @@ public class LeoneScreen extends Screen {
 		binding = m;
 	}
 
-	void beginDrag(Canvas cv, Setting.Slider sl, float x, float w) {
+	/**
+	 * Starts dragging a slider whose track runs from {@code gx0} to {@code gx1} in GUI coordinates. They are
+	 * worked out while the slider is drawn: by the time the click arrives, the canvas no longer holds the
+	 * panel's transform.
+	 */
+	void beginDrag(Setting.Slider sl, float gx0, float gx1) {
 		dragging = sl;
-		dragX0 = cv.tx(x, 0);
-		dragW = cv.tx(x + w, 0) - dragX0;
+		dragX0 = gx0;
+		dragW = gx1 - gx0;
 		updateDrag(mouseX);
 	}
 
@@ -1040,6 +1045,21 @@ public class LeoneScreen extends Screen {
 	/** Opens a module's settings. */
 	public void debugSettings(Module m) {
 		openSettings(m);
+	}
+
+	/** Where a slider was last drawn, in GUI coordinates: track left, track right, track middle y, badge centre x and y; null if not drawn. */
+	public float @Nullable [] debugSlider(Setting.Slider sl) {
+		return settingsView.drawnSliders.get(sl);
+	}
+
+	/** Centre of the open settings page's reset button. */
+	public float @Nullable [] debugResetButton() {
+		return settingsView.resetCentre;
+	}
+
+	/** Mouse moves with the left button held, as Minecraft reports a drag. */
+	public void debugDrag(float x, float y) {
+		mouseDragged(new MouseButtonEvent(x, y, new net.minecraft.client.input.MouseButtonInfo(0, 0)), 0, 0);
 	}
 
 	/** Types text into the focused field (or starts a search), as if from the keyboard. */

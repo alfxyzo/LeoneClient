@@ -16,6 +16,7 @@ import dev.alfxyz.leoneclient.staffchat.StaffPlaceholder;
 import dev.alfxyz.leoneclient.hud.Hud;
 import dev.alfxyz.leoneclient.hud.HudEditorScreen;
 import dev.alfxyz.leoneclient.module.Modules;
+import dev.alfxyz.leoneclient.module.Setting;
 import dev.alfxyz.leoneclient.features.ChatHooks;
 import dev.alfxyz.leoneclient.staffchat.StaffChat;
 import dev.alfxyz.leoneclient.staffchat.StaffState;
@@ -523,6 +524,7 @@ public final class DevAutomation {
 		at(800, "rocket: segment", mc -> click(mc, screen(mc).debugSegment(Category.shown().size() - 1), 0));
 		at(700, "rocket: open settings", mc -> screen(mc).debugSettings(Modules.ROCKET_CHECK));
 		shot(900, "61-rocket-settings");
+		sliderChecks();
 		at(100, "rocket: done", mc -> {
 			mc.gui.setScreen(null);
 			RocketCheck.debugIncludeSelf = false;
@@ -534,6 +536,63 @@ public final class DevAutomation {
 			Modules.ROCKET_CHECK.reset();
 			Category.pretendServer = null;
 			Modules.ALL_SERVERS.setEnabled(false);
+		});
+	}
+
+	/** Point {@code f} of the way along a slider's track, as drawn. */
+	private static float[] along(Minecraft mc, Setting.Slider sl, float f) {
+		float[] d = screen(mc).debugSlider(sl);
+		return new float[] {d[0] + (d[1] - d[0]) * f, d[2]};
+	}
+
+	private static float[] badge(Minecraft mc, Setting.Slider sl) {
+		float[] d = screen(mc).debugSlider(sl);
+		return new float[] {d[3], d[4]};
+	}
+
+	/** Sliders on Rocket Check's settings page: click, drag, type a value, then reset the page. */
+	private static void sliderChecks() {
+		Setting.Slider leeway = Modules.ROCKET_CHECK.leeway, minutes = Modules.ROCKET_CHECK.panelMinutes;
+		at(100, "sliders: click three quarters along", mc -> {
+			LOGGER.info("Leone autotest: leeway slider drawn at {}", java.util.Arrays.toString(screen(mc).debugSlider(leeway)));
+			click(mc, along(mc, leeway, 0.75f), 0);
+			check("clicking a slider three quarters along sets it there (" + leeway.get() + ")", Math.abs(leeway.get() - 1.125f) <= 0.051f);
+		});
+		at(100, "sliders: drag", mc -> {
+			float[] from = along(mc, leeway, 0.5f), to = along(mc, leeway, 0.2f);
+			LeoneScreen s = screen(mc);
+			s.mouseMoved(from[0], from[1]);
+			s.mouseClicked(new MouseButtonEvent(from[0], from[1], new MouseButtonInfo(0, 0)), false);
+			float mid = leeway.get();
+			s.debugDrag(to[0], to[1]);
+			s.mouseReleased(new MouseButtonEvent(to[0], to[1], new MouseButtonInfo(0, 0)));
+			check("dragging a slider follows the mouse (" + mid + " then " + leeway.get() + ")", Math.abs(mid - 0.75f) <= 0.051f && Math.abs(leeway.get() - 0.3f) <= 0.051f);
+		});
+		shot(300, "62-slider-dragged");
+		at(100, "sliders: type a value", mc -> {
+			click(mc, badge(mc, minutes), 0);
+			screen(mc).debugType("12");
+		});
+		shot(300, "63-slider-typing");
+		at(100, "sliders: enter", mc -> key(mc, GLFW.GLFW_KEY_ENTER));
+		at(100, "sliders: typed", mc -> check("typing 12 into a slider's value sets it (" + minutes.get() + ")", minutes.get() == 12));
+		at(100, "sliders: type too much", mc -> {
+			click(mc, badge(mc, leeway), 0);
+			screen(mc).debugType("9");
+			click(mc, along(mc, minutes, 0.5f), 0);
+			// the click elsewhere moves Keep players for, then the typed leeway applies on the next frame
+		});
+		at(200, "sliders: clamped", mc -> check("a typed value past the end stops at the end (" + leeway.get() + ")", leeway.get() == 1.5f));
+		at(100, "sliders: reset once", mc -> {
+			minutes.set(12);
+			click(mc, screen(mc).debugResetButton(), 0);
+			check("one click on Reset to defaults only asks to confirm", leeway.get() == 1.5f && minutes.get() == 12);
+		});
+		shot(300, "64-reset-confirm");
+		at(100, "sliders: reset twice", mc -> {
+			click(mc, screen(mc).debugResetButton(), 0);
+			check("a second click puts the settings back (" + leeway.get() + ", " + minutes.get() + ")", leeway.get() == 0.3f && minutes.get() == 5);
+			check("resetting leaves the module on", Modules.ROCKET_CHECK.enabled());
 		});
 	}
 
