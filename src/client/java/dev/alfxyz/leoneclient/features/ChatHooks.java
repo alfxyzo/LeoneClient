@@ -21,6 +21,7 @@ public final class ChatHooks {
 			LeoneMC.onChat(plain);
 			StaffState.onServerMessage(plain);
 			if (Modules.ITEM_COOLDOWNS.onServerMessage(plain)) return null;
+			if (Modules.LIVE_AUCTIONS.onServerMessage(plain)) return null;
 		}
 		// trackers first, so they see lines that a filter below hides
 		Modules.TIMERS.track(plain);

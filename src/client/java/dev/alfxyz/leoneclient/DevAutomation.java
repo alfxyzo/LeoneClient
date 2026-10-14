@@ -7,6 +7,7 @@ import dev.alfxyz.leoneclient.features.ActionBars;
 import dev.alfxyz.leoneclient.features.AutoReconnect;
 import dev.alfxyz.leoneclient.features.ChatTabs;
 import dev.alfxyz.leoneclient.features.ItemCooldowns;
+import dev.alfxyz.leoneclient.features.LiveAuctions;
 import dev.alfxyz.leoneclient.features.Timers;
 import dev.alfxyz.leoneclient.features.RocketCheck;
 import dev.alfxyz.leoneclient.features.WebEscape;
@@ -397,6 +398,71 @@ public final class DevAutomation {
 			out.add(Chat.plain(c));
 		}
 		return out;
+	}
+
+	private static LiveAuctions.Auction auction() {
+		return Modules.LIVE_AUCTIONS.current();
+	}
+
+	/** Live auctions in both of LeoneMC's formats: timing, top bid, outbid, hiding, joining late and the results. */
+	private static void auctionChecks() {
+		at(200, "auctions: start", mc -> {
+			Modules.ALL_SERVERS.setEnabled(true);
+			Modules.LIVE_AUCTIONS.setEnabled(true);
+			Modules.LIVE_AUCTIONS.debugClear();
+			Hud.byId("live_auctions").resetPosition();
+			server(mc, "Auction » Seller_One is auctioning  Hawk Claw for $450 [Click to view item]");
+			LiveAuctions.Auction a = auction();
+			check("an auction start is picked up, item name cleaned", a != null && a.item.equals("Hawk Claw") && a.seller.equals("Seller_One") && a.topBid == 450);
+			check("an auction runs for a minute from its start (" + (a == null ? -1 : a.left()) + " ms)", a != null && a.timed() && a.left() > 58_000 && a.left() <= 60_000);
+			server(mc, "§6§lAuction §8» §f" + mc.getUser().getName() + " §7has bid §f$451§7. §a[Click to bid]");
+		});
+		at(200, "auctions: your bid", mc -> {
+			LiveAuctions.Auction a = auction();
+			check("your own bid makes you the top bidder", a != null && a.youLead() && a.youBid && a.topBid == 451);
+			server(mc, "Auction » Bidder_Two has bid $1,475. [Click to bid]");
+		});
+		at(200, "auctions: outbid", mc -> {
+			LiveAuctions.Auction a = auction();
+			check("someone else's bid outbids you", a != null && !a.youLead() && a.outbidAt > 0 && a.topBid == 1475 && "Bidder_Two".equals(a.topBidder) && a.bids == 2);
+			check("the bid key would bid the top bid plus a dollar (" + Modules.LIVE_AUCTIONS.nextBid() + ")", Modules.LIVE_AUCTIONS.nextBid() == 1476);
+			Modules.LIVE_AUCTIONS.hideBids.value = true;
+			check("bid lines can be hidden", ChatHooks.incoming(Component.literal("Auction » Bidder_Three has bid $1,500. [Click to bid]"),
+				net.minecraft.client.multiplayer.chat.GuiMessageSource.SYSTEM_SERVER) == null && auction().topBid == 1500);
+			Modules.LIVE_AUCTIONS.hideBids.value = false;
+			Modules.LIVE_AUCTIONS.debugStartedAgo(36_000);
+		});
+		shot(500, "56-live-auction");
+		at(100, "auctions: won", mc -> {
+			Modules.LIVE_AUCTIONS.debugStartedAgo(24_000);
+			server(mc, "Auction » Bidder_Three won the auction with a bid of $1,500!");
+			LiveAuctions.Auction a = auction();
+			check("the result ends the auction and stays a moment", a != null && a.end == LiveAuctions.End.SOLD && a.topBid == 1500);
+			check("the sale is remembered for the item (" + Modules.LIVE_AUCTIONS.usualPrice("hawk claw") + ")", Modules.LIVE_AUCTIONS.pastSales("Hawk Claw").contains(1500.0));
+			check("the length is learned from it (" + Modules.LIVE_AUCTIONS.duration() + " ms)", Math.abs(Modules.LIVE_AUCTIONS.duration() - 60_000) < 1500);
+			Modules.LIVE_AUCTIONS.debugClear();
+			server(mc, "Auction » Bidder_Two has bid $10. [Click to bid]");
+		});
+		at(200, "auctions: joined late", mc -> {
+			LiveAuctions.Auction a = auction();
+			check("a bid with no start seen shows the auction without a clock", a != null && !a.timed() && a.topBid == 10);
+			server(mc, "Live Auction » Auction ending in 5");
+			a = auction();
+			check("the server's own countdown sets the exact end", a != null && a.timed() && a.left() > 4_000 && a.left() <= 5_000);
+			server(mc, "Live Auction » Seller_One started an auction at $100 for 1x [Christmas Boots] [BID]");
+			server(mc, "Live Auction » Bidder_Two bid $1,000 for [Christmas Boots] [Bid]");
+			a = auction();
+			check("the other auction format works too", a != null && a.item.equals("Christmas Boots") && a.timed() && a.topBid == 1000 && "Bidder_Two".equals(a.topBidder));
+			server(mc, "Live Auction » Bidder_Two won [Christmas Boots] for $1000!");
+			check("and its result", auction() != null && auction().end == LiveAuctions.End.SOLD);
+			server(mc, "Auction » Seller_One is auctioning Switcher for $450 [Click to view item]");
+			server(mc, "Auction » No one bid on the auction!");
+			check("an auction nobody bid on ends with no bids", auction() != null && auction().end == LiveAuctions.End.NO_BIDS);
+		});
+		at(100, "auctions: done", mc -> {
+			Modules.LIVE_AUCTIONS.debugClear();
+			Modules.ALL_SERVERS.setEnabled(false);
+		});
 	}
 
 	private static ItemCooldowns.Tracker tracker(String id) {
@@ -1093,6 +1159,7 @@ public final class DevAutomation {
 		chatTabsChecks();
 		networkChecks();
 		serverChecks();
+		auctionChecks();
 		webChecks();
 		rocketChecks();
 

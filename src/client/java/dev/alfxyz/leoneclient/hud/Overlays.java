@@ -7,6 +7,7 @@ import dev.alfxyz.leoneclient.anim.Ease;
 import dev.alfxyz.leoneclient.features.ActionBars;
 import dev.alfxyz.leoneclient.features.AnticheatAlerts;
 import dev.alfxyz.leoneclient.features.ItemCooldowns;
+import dev.alfxyz.leoneclient.features.LiveAuctions;
 import dev.alfxyz.leoneclient.features.RocketCheck;
 import dev.alfxyz.leoneclient.features.WebEscape;
 import dev.alfxyz.leoneclient.features.ModModeStatus;
@@ -53,7 +54,7 @@ final class Overlays {
 
 	static List<Overlay> create() {
 		return List.of(new Watermark(), new ModuleList(), new ActionBarOverlay(), new CombatBarOverlay(), new Notifications(), new ServerOverlay(),
-			new TimersPanel(), new SessionStatsOverlay(), new StaffStatusOverlay(), new AnticheatPanel(), new CooldownsPanel(), new WebEscapeNote(), new RocketCheckPanel(),
+			new TimersPanel(), new AuctionPanel(), new SessionStatsOverlay(), new StaffStatusOverlay(), new AnticheatPanel(), new CooldownsPanel(), new WebEscapeNote(), new RocketCheckPanel(),
 			new Fps(), new Ping(), new Coordinates(), new Speed(), new Cps(), new Keystrokes());
 	}
 
@@ -1251,6 +1252,137 @@ final class Overlays {
 			c.cv.fillRoundRect(tx, by, bw, 4, 2, Colors.white(0.1f));
 			float fill = ready ? 1 : 1 - frac;
 			if (fill > 0) c.cv.fillRoundRect(tx, by, Math.max(4, bw * fill), 4, 2, ready ? 0xFF4ADE80 : left < 10_000 ? 0xFFFBBF24 : Colors.ACCENT);
+		}
+	}
+
+	/** The live auction: item and seller, the time left over a bar, and the top bid with who holds it. */
+	static final class AuctionPanel extends Overlay {
+		private static final float W = 250, H = 78, PAD = 12, HEAD = 14;
+		/** How long the panel glows red after you are outbid. */
+		private static final double FLASH_MS = 1600;
+
+		AuctionPanel() {
+			// top right, where the old Live Auction Helper sat; it stacks with Timers there
+			super("live_auctions", "Live Auction", "The live auction's timer and top bid", false, END, START, 8, 8);
+		}
+
+		@Override
+		public Module owner() {
+			return Modules.LIVE_AUCTIONS;
+		}
+
+		@Override
+		public boolean enabled() {
+			return Modules.LIVE_AUCTIONS.enabled();
+		}
+
+		@Override
+		public void setEnabled(boolean on) {
+			Modules.LIVE_AUCTIONS.setEnabled(on);
+		}
+
+		@Override
+		public boolean shown() {
+			return Modules.LIVE_AUCTIONS.current() != null;
+		}
+
+		private static final LiveAuctions.Auction SAMPLE = new LiveAuctions.Auction("Hawk Claw", "Seller", 450, 1, 1);
+
+		static {
+			SAMPLE.topBid = 475;
+			SAMPLE.topBidder = "Bidder";
+			SAMPLE.bids = 4;
+		}
+
+		private LiveAuctions.@Nullable Auction auction(Context c) {
+			LiveAuctions.Auction a = Modules.LIVE_AUCTIONS.current();
+			return a == null && c.editor ? SAMPLE : a;
+		}
+
+		@Override
+		public float width(Context c) {
+			return auction(c) == null ? 0 : W;
+		}
+
+		@Override
+		public float height(Context c) {
+			return auction(c) == null ? 0 : H;
+		}
+
+		@Override
+		public void draw(Context c, float x, float y, float w, float h) {
+			LiveAuctions.@Nullable Auction a = auction(c);
+			if (a == null) return;
+			boolean sample = a == SAMPLE;
+			long now = System.currentTimeMillis();
+			long left = sample ? 23_000 : a.left();
+			float frac = sample ? 23 / 60f : a.remaining();
+			boolean ended = a.ended(), timed = sample || a.timed(), lead = !sample && a.youLead();
+			int urgency = left <= 5_000 ? BAD : left <= 10_000 ? FAIR : Colors.ACCENT;
+
+			c.cv.fillRoundRect(x, y, w, h, 12, Colors.glass(0.7f));
+			double flash = a.outbidAt == 0 ? FLASH_MS : now - a.outbidAt;
+			if (flash < FLASH_MS) c.cv.fillRoundRect(x, y, w, h, 12, Colors.rgba(BAD & 0xFFFFFF, 0.3f * (1 - (float) (flash / FLASH_MS))));
+			// the edge pulses red through the last five seconds
+			float edge = !ended && timed && left <= 5_000 ? 0.35f + 0.25f * (float) Math.sin(now / 110.0) : 0;
+			c.cv.borderRoundRect(x, y, w, h, 12, 1, edge > 0 ? Colors.rgba(BAD & 0xFFFFFF, edge) : Colors.white(0.08f));
+
+			float l = x + PAD, r = x + w - PAD;
+			// top line: the heading, and the clock or the result
+			String time;
+			int timeColor;
+			if (ended) {
+				time = a.end == LiveAuctions.End.SOLD ? (lead ? "You won" : "Sold") : a.end == LiveAuctions.End.NO_BIDS ? "No bids" : "Ended";
+				timeColor = a.end == LiveAuctions.End.SOLD ? GOOD : Colors.TEXT_HINT;
+			} else if (!timed) {
+				time = "Joined late";
+				timeColor = Colors.TEXT_HINT;
+			} else {
+				time = left <= 0 ? "Ending" : left < 10_000 ? String.format(Locale.ROOT, "%.1fs", left / 1000.0) : (left + 999) / 1000 + "s";
+				timeColor = left <= 10_000 ? urgency : Colors.TEXT;
+			}
+			c.text.draw(c.cv, "LIVE AUCTION", l, c.text.baselineFor(Panel.CAPS, y + 14), Panel.CAPS, Colors.TEXT_HINT);
+			float tw = c.text.width(time, VALUE_STRONG);
+			c.text.draw(c.cv, time, r - tw, c.text.baselineFor(VALUE_STRONG, y + 14), VALUE_STRONG, timeColor);
+
+			// the item, and who is selling it
+			String seller = a.seller.isEmpty() ? "" : "by " + a.seller;
+			float sw = seller.isEmpty() ? 0 : c.text.width(seller, Panel.ROW_TEXT);
+			c.text.draw(c.cv, c.text.fit(a.item, Panel.ROW_TITLE, w - 2 * PAD - sw - 10), l, c.text.baselineFor(Panel.ROW_TITLE, y + 33), Panel.ROW_TITLE, Colors.TEXT);
+			if (sw > 0) c.text.draw(c.cv, seller, r - sw, c.text.baselineFor(Panel.ROW_TEXT, y + 33), Panel.ROW_TEXT, Colors.TEXT_HINT);
+
+			// the bar runs down with the time; joined late, a segment sweeps across instead
+			float by = y + 45, bw = r - l;
+			c.cv.fillRoundRect(l, by, bw, 4, 2, Colors.white(0.1f));
+			if (ended) {
+				c.cv.fillRoundRect(l, by, bw, 4, 2, a.end == LiveAuctions.End.SOLD ? GOOD : Colors.white(0.25f));
+			} else if (!timed) {
+				float seg = bw * 0.3f, pos = (float) ((now % 1600) / 1600.0) * (bw + seg) - seg;
+				float s0 = Math.max(l, l + pos), s1 = Math.min(r, l + pos + seg);
+				if (s1 - s0 > 1) c.cv.fillRoundRect(s0, by, s1 - s0, 4, 2, Colors.white(0.35f));
+			} else if (frac > 0) {
+				c.cv.fillRoundRect(l, by, Math.max(4, bw * frac), 4, 2, urgency);
+			}
+
+			// the top bid, green while it is yours, then who holds it and what the item usually goes for
+			float ly = y + 63, cx = l;
+			if (a.topBidder != null && !sample) {
+				PlayerInfo info = c.mc.getConnection() == null ? null : c.mc.getConnection().getPlayerInfo(a.topBidder);
+				if (info != null) {
+					Heads.draw(c.cv, c.text, info.getProfile().id(), a.topBidder, cx, ly - HEAD / 2, HEAD, 3);
+					cx += HEAD + 7;
+				}
+			}
+			String bid = LiveAuctions.money(a.topBid);
+			c.text.draw(c.cv, bid, cx, c.text.baselineFor(VALUE_STRONG, ly), VALUE_STRONG, lead ? GOOD : Colors.TEXT);
+			cx += c.text.width(bid, VALUE_STRONG) + 6;
+			double usual = sample ? 500 : Modules.LIVE_AUCTIONS.usualPrice(a.item);
+			String right = usual > 0 ? "usually " + LiveAuctions.money(usual) : a.bids == 1 ? "1 bid" : a.bids + " bids";
+			float rw = c.text.width(right, Panel.ROW_TEXT);
+			String who = a.topBidder == null ? "starting price" : lead ? "you" : a.topBidder;
+			c.text.draw(c.cv, c.text.fit(who, Panel.ROW_TEXT, Math.max(0, r - rw - 10 - cx)), cx, c.text.baselineFor(Panel.ROW_TEXT, ly), Panel.ROW_TEXT,
+				lead ? GOOD : Colors.TEXT_MUTED);
+			c.text.draw(c.cv, right, r - rw, c.text.baselineFor(Panel.ROW_TEXT, ly), Panel.ROW_TEXT, Colors.TEXT_HINT);
 		}
 	}
 

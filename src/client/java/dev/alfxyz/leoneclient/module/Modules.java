@@ -15,6 +15,7 @@ import dev.alfxyz.leoneclient.features.CombatTimer;
 import dev.alfxyz.leoneclient.features.EnderChestPages;
 import dev.alfxyz.leoneclient.features.FriendActivity;
 import dev.alfxyz.leoneclient.features.ItemCooldowns;
+import dev.alfxyz.leoneclient.features.LiveAuctions;
 import dev.alfxyz.leoneclient.features.FriendHighlight;
 import dev.alfxyz.leoneclient.features.Interface;
 import dev.alfxyz.leoneclient.features.LogFilter;
@@ -54,6 +55,7 @@ public final class Modules {
 	public static final WebEscape WEB_ESCAPE = new WebEscape();
 	public static final RocketCheck ROCKET_CHECK = new RocketCheck();
 	public static final EnderChestPages ENDER_CHEST_PAGES = new EnderChestPages();
+	public static final LiveAuctions LIVE_AUCTIONS = new LiveAuctions();
 	public static final Interface INTERFACE = new Interface();
 	public static final AllServers ALL_SERVERS = new AllServers();
 	public static final LogFilter LOG_FILTER = new LogFilter();
@@ -67,7 +69,7 @@ public final class Modules {
 		ANTI_MUTE, ALERT_FILTER, CHAT_CLEANER, MENTIONS, CHAT_TABS,
 		FRIEND_HIGHLIGHT, FRIEND_ACTIVITY, PLAYER_LOOKUP,
 		ACTION_BAR, TIMERS, PACK_WARNINGS,
-		AUTO_JOIN, AUTO_RECONNECT, ENDER_CHEST_PAGES,
+		AUTO_JOIN, AUTO_RECONNECT, ENDER_CHEST_PAGES, LIVE_AUCTIONS,
 		INTERFACE, ALL_SERVERS, LOG_FILTER,
 		STAFF_CHAT, ANTICHEAT_ALERTS, REPORTS, MOD_MODE,
 		// LeoneMC servers, each only on its own server
