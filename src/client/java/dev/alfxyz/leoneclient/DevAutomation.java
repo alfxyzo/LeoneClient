@@ -622,6 +622,27 @@ public final class DevAutomation {
 		at(200, "cooldowns: synced", mc -> {
 			ItemCooldowns.Tracker cage = tracker("cage");
 			check("the server's time left corrects the timer (" + cage.left() + " ms)", cage.left() > 35_000 && cage.left() <= 37_000);
+			// a use in the last moment of our timer, which the server takes as its own has already ended
+			Modules.ITEM_COOLDOWNS.debugLeft("cage", 150);
+			Modules.ITEM_COOLDOWNS.debugUse(InteractionHand.MAIN_HAND, ItemCooldowns.Trigger.USE);
+		});
+		at(600, "cooldowns: use at the end", mc -> {
+			ItemCooldowns.Tracker cage = tracker("cage");
+			check("a use while the timer is just ending still starts a new one (" + cage.left() + " ms)", cage.left() > 170_000);
+			// the refusal of an earlier use arrives just after a use the server took
+			Modules.ITEM_COOLDOWNS.debugLeft("cage", 0);
+			Modules.ITEM_COOLDOWNS.debugUse(InteractionHand.MAIN_HAND, ItemCooldowns.Trigger.USE);
+			server(mc, "You cannot use cage item for another 0.0 seconds!");
+		});
+		at(600, "cooldowns: late refusal", mc -> {
+			ItemCooldowns.Tracker cage = tracker("cage");
+			check("a refusal of an earlier use does not cancel a later one the server took (" + cage.left() + " ms)", cage.left() > 170_000);
+			Modules.ITEM_COOLDOWNS.debugUse(InteractionHand.MAIN_HAND, ItemCooldowns.Trigger.USE);
+			server(mc, "You cannot use cage item for another 37 seconds!");
+		});
+		at(600, "cooldowns: refused mid-way", mc -> {
+			ItemCooldowns.Tracker cage = tracker("cage");
+			check("a use the server refuses part-way through does not restart the timer (" + cage.left() + " ms)", cage.left() > 35_000 && cage.left() <= 37_000);
 			mc.player.getInventory().setSelectedSlot(1);
 		});
 		at(200, "cooldowns: cobweb refused", mc -> {

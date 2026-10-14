@@ -24,7 +24,8 @@ public abstract class ItemDecorationsMixin {
 		g.fill(x, y + 16 - filled, x + 16, y + 16, 0x80FFFFFF);
 		long left = t.left();
 		long secs = (left + 999) / 1000;
-		String label = left < 10_000 ? String.format(Locale.ROOT, "%.1f", left / 1000.0)
+		// tenths round up, so the label never reads 0.0 while the cooldown still runs
+		String label = left < 10_000 ? String.format(Locale.ROOT, "%.1f", (left + 99) / 100 / 10.0)
 			: secs < 60 ? String.valueOf(secs) : String.format(Locale.ROOT, "%d:%02d", secs / 60, secs % 60);
 		g.pose().pushMatrix();
 		g.pose().translate(x + 8f, y + 4.5f);

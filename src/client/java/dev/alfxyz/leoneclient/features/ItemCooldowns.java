@@ -27,6 +27,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
+import net.minecraft.client.multiplayer.PlayerInfo;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.core.Holder;
 import net.minecraft.core.component.DataComponents;
@@ -54,8 +55,10 @@ public final class ItemCooldowns extends Module {
 	/** "You cannot use cobweb circle for another 37 seconds!", and "...use this..." for a Knockback weapon. */
 	private static final Pattern FOR_ANOTHER = Pattern.compile("^You cannot use (.+?) for another ([0-9]+(?:\\.[0-9]+)?) seconds?[.!]*$", Pattern.CASE_INSENSITIVE);
 	private static final Pattern HERE = Pattern.compile("^You cannot use (.+?) here!?$", Pattern.CASE_INSENSITIVE);
-	/** A use counts once a few ticks pass without the server refusing it. */
-	private static final int CONFIRM_TICKS = 6;
+	/** A use counts once this long passes without the server refusing it (longer on a slow connection). */
+	private static final long CONFIRM_MS = 300;
+	/** Slack when matching a refusal to the uses it was about: the server rounds to tenths and pings wobble. */
+	private static final long MARGIN_MS = 250;
 	/** A refusal that names no item ("this") belongs to the item used within this long. */
 	private static final long GENERIC_MS = 3000;
 	private static final long LINGER_MS = 4000;
@@ -80,6 +83,8 @@ public final class ItemCooldowns extends Module {
 		/** When the timer ends and how long it ran, in epoch ms; 0 when idle. */
 		long endsAt, length;
 		long readyAt;
+		/** When the use that started the timer happened; 0 when the server's message set it. */
+		long startedAt;
 
 		Tracker(String id, String name, Item icon, Trigger trigger, long cooldown, @Nullable Item item, @Nullable String customName,
 				boolean knockback, boolean quiet, String... words) {
@@ -126,10 +131,11 @@ public final class ItemCooldowns extends Module {
 			return length <= 0 ? 0 : Math.min(1, (float) left() / length);
 		}
 
-		void start(long ms) {
-			long now = System.currentTimeMillis();
-			length = Math.max(1, ms);
-			endsAt = now + length;
+		/** The server took the use made at that moment: the cooldown runs from then, as the server's does. */
+		void start(long at) {
+			length = cooldown;
+			endsAt = at + cooldown;
+			startedAt = at;
 			readyAt = 0;
 		}
 
@@ -137,11 +143,13 @@ public final class ItemCooldowns extends Module {
 		void sync(long ms) {
 			length = Math.max(cooldown, ms);
 			endsAt = System.currentTimeMillis() + ms;
+			startedAt = 0;
 			readyAt = 0;
 		}
 	}
 
-	private record Pending(Tracker tracker, int[] ticksLeft) {
+	/** A use waiting to see whether the server refuses it, and when it was made (epoch ms). */
+	private record Pending(Tracker tracker, long at) {
 	}
 
 	public final Setting.Chips track = add(new Setting.Chips("track", "Track", "ITEMS", List.of("Cage", "Cobweb Circle", "Knockback"),
@@ -193,7 +201,11 @@ public final class ItemCooldowns extends Module {
 		return null;
 	}
 
-	/** You used or hit with whatever is in that hand: a matching item's timer starts once the server does not refuse it. */
+	/**
+	 * You used or hit with whatever is in that hand: a matching item's timer starts once the server does not refuse it.
+	 * Every use waits for the server, even while our timer runs: ours is never exactly in step with the server's, and a
+	 * hit the moment it looks ready may land on the server while ours still shows a fraction of a second.
+	 */
 	void used(InteractionHand hand, Trigger trigger) {
 		Minecraft mc = Minecraft.getInstance();
 		if (!active() || mc.player == null) return;
@@ -201,29 +213,41 @@ public final class ItemCooldowns extends Module {
 		if (t == null || t.trigger != trigger) return;
 		lastUsed = t;
 		lastUsedAt = System.currentTimeMillis();
-		if (t.running()) return;
-		for (Pending p : pending) if (p.tracker == t) return;
-		pending.add(new Pending(t, new int[] {CONFIRM_TICKS}));
+		pending.add(new Pending(t, lastUsedAt));
 	}
 
 	/** A server message: refusals cancel a use, and "for another N seconds" sets the timer. Returns whether to hide it. */
 	public boolean onServerMessage(String plain) {
 		if (!active()) return false;
+		long now = System.currentTimeMillis(), ping = ping(Minecraft.getInstance());
 		Matcher m = FOR_ANOTHER.matcher(plain.strip());
 		if (m.matches()) {
 			Tracker t = named(m.group(1));
 			if (t == null) return false;
-			cancel(t);
-			t.sync(Math.round(Double.parseDouble(m.group(2)) * 1000));
+			// the server is ready for uses we make from this moment on (they reach it half a ping later, as this took half a ping to come)
+			long left = Math.round(Double.parseDouble(m.group(2)) * 1000);
+			long readyFrom = now + left - ping;
+			// refused: uses made while the server was busy, but not the one that started its cooldown, nor any made after it was ready
+			pending.removeIf(p -> p.tracker == t && p.at > readyFrom - t.cooldown + MARGIN_MS && p.at < readyFrom - MARGIN_MS);
+			// a refusal of an earlier use, arriving after a later one went through: the timer from that later use stands
+			if (!(t.running() && t.startedAt >= readyFrom - MARGIN_MS)) t.sync(Math.max(0, left - ping));
 			dirty = true;
 			return hideMessages.get();
 		}
 		m = HERE.matcher(plain.strip());
 		if (m.matches()) {
 			Tracker t = named(m.group(1));
-			if (t != null) cancel(t);
+			// the use this answers was made a ping ago; any made since are still waiting
+			if (t != null) pending.removeIf(p -> p.tracker == t && p.at <= now - ping + MARGIN_MS);
 		}
 		return false;
+	}
+
+	/** Your round trip to the server in ms, from the player list; 0 when unknown. */
+	private static long ping(Minecraft mc) {
+		if (mc.getConnection() == null || mc.player == null) return 0;
+		PlayerInfo info = mc.getConnection().getPlayerInfo(mc.player.getUUID());
+		return info == null ? 0 : Math.clamp(info.getLatency(), 0, 1000);
 	}
 
 	/** The tracker a message means: by its words, or for "this", the item just used. */
@@ -241,10 +265,6 @@ public final class ItemCooldowns extends Module {
 		return recent && lastUsed.on() ? lastUsed : byWord;
 	}
 
-	private void cancel(Tracker t) {
-		pending.removeIf(p -> p.tracker == t);
-	}
-
 	@Override
 	public void tick(Minecraft mc) {
 		load();
@@ -254,18 +274,20 @@ public final class ItemCooldowns extends Module {
 		}
 		// a click that opened a chest or a shop was not a use
 		boolean container = mc.gui.screen() instanceof AbstractContainerScreen<?> s && !(s instanceof InventoryScreen) && !(s instanceof CreativeModeInventoryScreen);
+		if (container) pending.clear();
+		// a refusal takes a round trip to come back, so wait at least that long before counting a use
+		long now = System.currentTimeMillis(), wait = Math.max(CONFIRM_MS, ping(mc) + 150);
 		Iterator<Pending> it = pending.iterator();
 		while (it.hasNext()) {
 			Pending p = it.next();
-			if (container) {
-				it.remove();
-			} else if (--p.ticksLeft[0] <= 0) {
-				it.remove();
-				p.tracker.start(p.tracker.cooldown);
-				dirty = true;
-			}
+			if (now - p.at < wait) continue;
+			// the first use the server took starts the cooldown, and later ones were refused by it
+			Tracker t = p.tracker;
+			pending.removeIf(q -> q.tracker == t);
+			t.start(p.at);
+			dirty = true;
+			it = pending.iterator();
 		}
-		long now = System.currentTimeMillis();
 		for (Tracker t : trackers) {
 			if (t.endsAt != 0 && now >= t.endsAt && t.readyAt == 0) {
 				t.readyAt = now;
