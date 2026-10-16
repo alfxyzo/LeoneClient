@@ -1017,10 +1017,31 @@ public final class DevAutomation {
 					downloaded = false;
 				}
 				check("a pack with no copy here is left to the game's own download", !downloaded && !java.nio.file.Files.exists(target.resolve(unknown.toString())));
+				var entry = new net.minecraft.client.multiplayer.ServerData("LeoneMC", "leonemc.net", net.minecraft.client.multiplayer.ServerData.Type.OTHER);
+				entry.setResourcePackStatus(net.minecraft.client.multiplayer.ServerData.ServerPackStatus.DISABLED);
+				Modules.PACK_PREFETCH.debugEntry(entry);
+				check("with LeoneMC's packs switched off, the card says so as a warning (" + Modules.PACK_PREFETCH.status() + ")",
+					"Server packs are off for LeoneMC".equals(Modules.PACK_PREFETCH.status()) && Modules.PACK_PREFETCH.statusWarns());
+				check("and chat explains how to switch them on", Modules.PACK_PREFETCH.warnIfPacksOff());
+				entry.setResourcePackStatus(net.minecraft.client.multiplayer.ServerData.ServerPackStatus.ENABLED);
+				check("switching them on in the server list clears the warning at once",
+					!Modules.PACK_PREFETCH.statusWarns() && !Modules.PACK_PREFETCH.warnIfPacksOff());
+				entry.setResourcePackStatus(net.minecraft.client.multiplayer.ServerData.ServerPackStatus.PROMPT);
+				check("asking first (Prompt) is not a warning", !Modules.PACK_PREFETCH.statusWarns());
+				// left switched off for the screenshot of the card
+				entry.setResourcePackStatus(net.minecraft.client.multiplayer.ServerData.ServerPackStatus.DISABLED);
 				java.nio.file.Files.deleteIfExists(ours);
 			} catch (Exception e) {
 				LOGGER.error("Leone autotest CHECK FAIL: pack prefetch threw", e);
 			}
+		});
+		at(100, "pack prefetch: open the menu", mc -> mc.gui.setScreen(new LeoneScreen()));
+		at(600, "pack prefetch: server", mc -> click(mc, screen(mc).debugSegment(4), 0));
+		at(10, "park", mc -> move(mc, screen(mc).designToGui(1500, 60)));
+		shot(1100, "73-pack-prefetch-packs-off");
+		at(100, "pack prefetch: close", mc -> {
+			Modules.PACK_PREFETCH.debugEntry(null);
+			mc.gui.setScreen(null);
 		});
 	}
 

@@ -5,6 +5,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.mojang.logging.LogUtils;
+import dev.alfxyz.leoneclient.Chat;
 import dev.alfxyz.leoneclient.LeoneMC;
 import dev.alfxyz.leoneclient.module.Category;
 import dev.alfxyz.leoneclient.module.Module;
@@ -75,6 +76,10 @@ public final class PackPrefetch extends Module {
 	private long lastRun;
 	/** Bytes the game did not have to download this session. */
 	private volatile long saved;
+	/** The server-list entry LeoneMC was last joined from, whose pack setting can change while we watch. */
+	private @Nullable ServerData leoneEntry;
+	/** When to say in chat that the packs are off: a moment after joining, so the server's welcome does not bury it. */
+	private long warnAt;
 
 	/** A pack and what is known about it. Guarded by {@code packs}. */
 	private static final class Entry {
@@ -96,6 +101,27 @@ public final class PackPrefetch extends Module {
 
 	public void register() {
 		ClientLifecycleEvents.CLIENT_STARTED.register(mc -> startedAt = System.currentTimeMillis());
+		LeoneMC.onFreshJoin(() -> {
+			ServerData server = Minecraft.getInstance().getCurrentServer();
+			if (server == null || !LeoneMC.connected()) return;
+			leoneEntry = server;
+			warnAt = System.currentTimeMillis() + 3_000;
+		});
+	}
+
+	/** Whether the server list has LeoneMC's resource packs switched off, as the last LeoneMC entry joined says. */
+	public boolean packsOff() {
+		ServerData e = leoneEntry;
+		return e != null && e.getResourcePackStatus() == ServerData.ServerPackStatus.DISABLED;
+	}
+
+	/** Says in chat when LeoneMC's packs are switched off, and how to switch them on. True when it warned. */
+	public boolean warnIfPacksOff() {
+		if (!enabled() || !packsOff()) return false;
+		Chat.info("LeoneMC's resource packs are switched off for this server in your server list, so its custom textures "
+			+ "will be missing and Pack Prefetch cannot help. To switch them on: Multiplayer, select this server, Edit, "
+			+ "set Server Resource Packs to Enabled, then rejoin.");
+		return true;
 	}
 
 	@Override
@@ -110,8 +136,12 @@ public final class PackPrefetch extends Module {
 
 	@Override
 	public void tick(Minecraft mc) {
-		if (!enabled() || startedAt == 0 || busy) return;
 		long now = System.currentTimeMillis();
+		if (warnAt != 0 && now >= warnAt) {
+			warnAt = 0;
+			if (LeoneMC.connected()) warnIfPacksOff();
+		}
+		if (!enabled() || startedAt == 0 || busy) return;
 		if (now - startedAt < FIRST_CHECK_DELAY_MS) return;
 		if (lastRun != 0 && now - lastRun < (long) (interval.get() * 60_000)) return;
 		lastRun = now;
@@ -139,6 +169,7 @@ public final class PackPrefetch extends Module {
 	@Override
 	public String status() {
 		if (!enabled()) return null;
+		if (packsOff()) return "Server packs are off for LeoneMC";
 		String p = progress;
 		if (p != null) return p;
 		if (saved > 0) return "Saved " + mb(saved) + " this session";
@@ -147,6 +178,11 @@ public final class PackPrefetch extends Module {
 			ready = (int) packs.stream().filter(e -> e.sha1 != null).count();
 		}
 		return ready == 0 ? null : ready == 1 ? "1 pack ready" : ready + " packs ready";
+	}
+
+	@Override
+	public boolean statusWarns() {
+		return packsOff();
 	}
 
 	// ------------------------------------------------------------------ hooks
@@ -320,6 +356,11 @@ public final class PackPrefetch extends Module {
 			Entry e = find(url);
 			return e == null ? null : e.sha1;
 		}
+	}
+
+	/** For the autotest: as if LeoneMC was last joined from this server-list entry. */
+	public void debugEntry(@Nullable ServerData entry) {
+		leoneEntry = entry;
 	}
 
 	/** The network pack on GitHub, which is always looked after. */

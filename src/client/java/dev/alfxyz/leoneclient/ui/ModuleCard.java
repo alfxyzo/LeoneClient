@@ -78,7 +78,7 @@ final class ModuleCard {
 
 		if (status != null) {
 			float sy = y + H - PAD + 2 - ui.text.lineHeight(Ui.SMALL) / 2;
-			int dot = waiting || m.unavailable() != null ? 0xFFF59E0B : Colors.ACCENT;
+			int dot = waiting || m.unavailable() != null || on && m.statusWarns() ? 0xFFF59E0B : Colors.ACCENT;
 			ui.cv.fillCircle(tx + 3, sy, 3, dot);
 			ui.text.draw(ui.cv, ui.text.fit(status, Ui.SMALL, right - tx - 12), tx + 12, ui.text.baselineFor(Ui.SMALL, sy), Ui.SMALL, Colors.TEXT_MUTED);
 		}

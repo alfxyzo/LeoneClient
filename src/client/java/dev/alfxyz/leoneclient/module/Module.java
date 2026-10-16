@@ -119,6 +119,11 @@ public abstract class Module {
 		return null;
 	}
 
+	/** True when {@link #status()} is a warning, so its card marks it as one. */
+	public boolean statusWarns() {
+		return false;
+	}
+
 	/** Why the module cannot work here, shown on its card even while it is off, or null. */
 	public String unavailable() {
 		return null;
