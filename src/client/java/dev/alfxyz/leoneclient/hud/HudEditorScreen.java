@@ -43,7 +43,7 @@ public class HudEditorScreen extends Screen {
 	private float anchorX, anchorY, baseW, baseH, startScale, startDist;
 	private boolean snapCenterX, snapCenterY;
 	private double mouseX, mouseY;
-	private float[] resetBtn = new float[4], doneBtn = new float[4], toolbar = new float[4];
+	private float[] resetBtn = new float[4], doneBtn = new float[4], vanillaBtn = new float[4], toolbar = new float[4];
 	/** The toolbar fades out of the way while you work on an overlay underneath it. */
 	private final Anim toolbarAlpha = new Anim(1);
 	private boolean toolbarFaded;
@@ -134,7 +134,7 @@ public class HudEditorScreen extends Screen {
 		c.flush(g);
 		ctx.drawItems();
 		text.setGraphics(null);
-		boolean overButton = !toolbarFaded && (inside(resetBtn, mdx, mdy) || inside(doneBtn, mdx, mdy));
+		boolean overButton = !toolbarFaded && (inside(resetBtn, mdx, mdy) || inside(doneBtn, mdx, mdy) || inside(vanillaBtn, mdx, mdy));
 		if (dragging != null || resizing != null) g.requestCursor(CursorTypes.RESIZE_ALL);
 		else if (gripHover != null) g.requestCursor(CursorTypes.POINTING_HAND);
 		else if (hovered != null) g.requestCursor(CursorTypes.RESIZE_ALL);
@@ -198,8 +198,9 @@ public class HudEditorScreen extends Screen {
 	private void drawToolbar(Canvas c, TextRenderer text, float sw, float mdx, float mdy, boolean anyEnabled) {
 		String title = "Modify HUD";
 		String hint = anyEnabled ? "Drag to move · Scroll, or drag the corner grip, to resize · Right-click to hide" : "No overlays enabled. Turn some on in Overlays.";
+		float vanillaW = 24 + text.width("Vanilla HUD", BUTTON);
 		float resetW = 24 + text.width("Reset", BUTTON), doneW = 24 + text.width("Done", BUTTON);
-		float w = 14 + 16 + 10 + text.width(title, TITLE) + 14 + text.width(hint, HINT) + 18 + resetW + 6 + doneW + 7;
+		float w = 14 + 16 + 10 + text.width(title, TITLE) + 14 + text.width(hint, HINT) + 18 + vanillaW + 6 + resetW + 6 + doneW + 7;
 		float h = 44, x = sw / 2 - w / 2, y = 18;
 		toolbar = new float[] {x, y, w, h};
 		c.boxShadow(x, y, w, h, 14, 0, 12, 16, Colors.black(0.35f));
@@ -212,6 +213,13 @@ public class HudEditorScreen extends Screen {
 		cx += text.width(title, TITLE) + 14;
 		text.draw(c, hint, cx, text.baselineFor(HINT, mid), HINT, Colors.TEXT_HINT);
 		cx += text.width(hint, HINT) + 18;
+		// Minecraft's own HUD (hotbar, health, scoreboard...) is edited in HUD Tailor's editor
+		vanillaBtn = new float[] {cx, mid - 15, vanillaW, 30};
+		boolean vh = inside(vanillaBtn, mdx, mdy);
+		c.fillRoundRect(cx, mid - 15, vanillaW, 30, 9, Colors.white(vh ? 0.1f : 0.06f));
+		c.borderRoundRect(cx, mid - 15, vanillaW, 30, 9, 1, Colors.accent(0.6f));
+		text.draw(c, "Vanilla HUD", cx + 12, text.baselineFor(BUTTON, mid), BUTTON, Colors.TEXT);
+		cx += vanillaW + 6;
 		resetBtn = new float[] {cx, mid - 15, resetW, 30};
 		boolean rh = inside(resetBtn, mdx, mdy);
 		c.fillRoundRect(cx, mid - 15, resetW, 30, 9, Colors.white(rh ? 0.1f : 0.06f));
@@ -222,6 +230,11 @@ public class HudEditorScreen extends Screen {
 		boolean dh = inside(doneBtn, mdx, mdy);
 		c.fillRoundRect(cx, mid - 15, doneW, 30, 9, dh ? Colors.ACCENT : Colors.accent(0.85f));
 		text.draw(c, "Done", cx + 12, text.baselineFor(BUTTON, mid), BUTTON, Colors.WHITE);
+	}
+
+	/** Dev automation: the centre of the Vanilla HUD button, in GUI coordinates. */
+	public float[] debugVanillaButton() {
+		return new float[] {(vanillaBtn[0] + vanillaBtn[2] / 2) * s(), (vanillaBtn[1] + vanillaBtn[3] / 2) * s()};
 	}
 
 	/** Dev automation: drags an overlay so its top-left lands at a design-space point. */
@@ -255,6 +268,11 @@ public class HudEditorScreen extends Screen {
 		float mdx = (float) (mouseX / s()), mdy = (float) (mouseY / s());
 		if (event.button() == 0 && !toolbarFaded && inside(doneBtn, mdx, mdy)) {
 			onClose();
+			return true;
+		}
+		if (event.button() == 0 && !toolbarFaded && inside(vanillaBtn, mdx, mdy)) {
+			LeoneConfig.save();
+			Minecraft.getInstance().gui.setScreen(new VanillaHudEditor(true));
 			return true;
 		}
 		if (event.button() == 0 && !toolbarFaded && inside(resetBtn, mdx, mdy)) {

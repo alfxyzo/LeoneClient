@@ -696,7 +696,7 @@ public final class DevAutomation {
 			for (int i = 0; i < lines.length; i++)
 				sb.getOrCreatePlayerScore(net.minecraft.world.scores.ScoreHolder.forNameOnly(lines[i]), obj).set(lines.length - i);
 			command(mc, "item replace entity @p armor.chest with minecraft:iron_chestplate");
-			command(mc, "effect give @p minecraft:speed 120 0");
+			command(mc, "effect give @p minecraft:speed 120 0 true");
 			Modules.HUD_TAILOR.reset();
 			Modules.HUD_TAILOR.setEnabled(true);
 			Modules.HUD_TAILOR.showAllLinesHere();
@@ -749,7 +749,7 @@ public final class DevAutomation {
 		at(100, "tailor: numbers", mc -> {
 			mc.gui.setScreen(null);
 			command(mc, "gamemode survival @p");
-			command(mc, "effect give @p minecraft:absorption 60 0");
+			command(mc, "effect give @p minecraft:absorption 60 0 true");
 			mc.gui.hud.getChat().clearMessages(false);
 			Modules.HUD_TAILOR.healthStyle.set("Number");
 			Modules.HUD_TAILOR.hungerStyle.set("Number");
@@ -766,6 +766,33 @@ public final class DevAutomation {
 				&& Modules.HUD_TAILOR.present(HudTailor.Part.ARMOUR, mc) && !Modules.HUD_TAILOR.present(HudTailor.Part.AIR, mc)));
 		at(100, "tailor: off is vanilla", mc -> Modules.HUD_TAILOR.setEnabled(false));
 		shot(400, "69-tailor-off");
+		at(100, "tailor: modify hud", mc -> mc.gui.setScreen(new HudEditorScreen()));
+		at(400, "tailor: vanilla button", mc -> {
+			if (!(mc.gui.screen() instanceof HudEditorScreen e)) return;
+			float[] b = e.debugVanillaButton();
+			e.mouseMoved(b[0], b[1]);
+		});
+		shot(200, "70-modify-hud-vanilla-button");
+		at(100, "tailor: click vanilla", mc -> {
+			if (!(mc.gui.screen() instanceof HudEditorScreen e)) return;
+			float[] b = e.debugVanillaButton();
+			e.mouseClicked(new MouseButtonEvent(b[0], b[1], new MouseButtonInfo(0, 0)), false);
+			check("Modify HUD's Vanilla HUD button opens HUD Tailor's editor, switching HUD Tailor on", tailor(mc) != null && Modules.HUD_TAILOR.enabled());
+		});
+		at(400, "tailor: back to overlays", mc -> {
+			var e = tailor(mc);
+			if (e == null) return;
+			float[] b = e.debugOverlaysButton();
+			tailorClick(mc, b[0], b[1], 0);
+			check("its Leone overlays button goes back to Modify HUD", mc.gui.screen() instanceof HudEditorScreen);
+			mc.gui.setScreen(new dev.alfxyz.leoneclient.hud.VanillaHudEditor(true));
+		});
+		at(300, "tailor: done from modify hud", mc -> {
+			var e = tailor(mc);
+			if (e != null) e.onClose();
+			check("Done returns to the menu", mc.gui.screen() instanceof LeoneScreen);
+		});
+		at(800, "tailor: close menu", mc -> mc.gui.setScreen(null));
 		at(100, "tailor: tidy", mc -> {
 			Modules.HUD_TAILOR.reset();
 			var sb = mc.level.getScoreboard();
