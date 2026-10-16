@@ -19,6 +19,8 @@
 		"LevelExtractorMixin",
 		"LivingEntityRendererMixin",
 		"MinecraftMixin",
+		"PackDownloadMixin",
+		"PackPushMixin",
 		"TabListAccessor",
 		"TabListMixin",
 		"TransferThreadMixin",

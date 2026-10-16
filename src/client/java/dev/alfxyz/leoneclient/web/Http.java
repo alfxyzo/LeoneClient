@@ -1,10 +1,12 @@
 package dev.alfxyz.leoneclient.web;
 
 import com.mojang.logging.LogUtils;
+import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.file.Path;
 import java.security.KeyStore;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
@@ -12,12 +14,14 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509TrustManager;
 import net.fabricmc.loader.api.FabricLoader;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 
 /**
@@ -110,6 +114,32 @@ public final class Http {
 		tmf.init(ks);
 		for (TrustManager tm : tmf.getTrustManagers()) if (tm instanceof X509TrustManager x) return x;
 		throw new IllegalStateException("no X509 trust manager");
+	}
+
+	/** A file download's reply: its status, and the ETag to send next time (null when not given). */
+	public record FileReply(int status, @Nullable String etag) {
+	}
+
+	/**
+	 * Downloads a file into {@code file}, blocking. With an ETag, a reply of 304 means it has not changed and
+	 * {@code file} is left alone; so is it for any other reply but 200, or a file bigger than {@code maxSize}.
+	 */
+	public static FileReply download(String url, Map<String, String> headers, @Nullable String etag, Path file, long maxSize)
+		throws IOException, InterruptedException {
+		HttpRequest.Builder b = HttpRequest.newBuilder(URI.create(url))
+			.timeout(Duration.ofMinutes(5))
+			.header("User-Agent", userAgent())
+			.GET();
+		headers.forEach(b::header);
+		if (etag != null) b.header("If-None-Match", etag);
+		HttpResponse<Path> r = client().send(b.build(), info -> {
+			long size = info.headers().firstValueAsLong("Content-Length").orElse(-1);
+			if (info.statusCode() != 200 || size > maxSize) return HttpResponse.BodySubscribers.replacing(null);
+			return HttpResponse.BodySubscribers.ofFile(file);
+		});
+		int status = r.statusCode();
+		if (status == 200 && r.body() == null) status = 413;
+		return new FileReply(status, r.headers().firstValue("ETag").orElse(null));
 	}
 
 	public static CompletableFuture<Response> get(String url, String accept) {

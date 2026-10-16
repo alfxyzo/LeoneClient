@@ -22,6 +22,7 @@ import dev.alfxyz.leoneclient.features.Interface;
 import dev.alfxyz.leoneclient.features.LogFilter;
 import dev.alfxyz.leoneclient.features.Mentions;
 import dev.alfxyz.leoneclient.features.ModModeStatus;
+import dev.alfxyz.leoneclient.features.PackPrefetch;
 import dev.alfxyz.leoneclient.features.PackWarnings;
 import dev.alfxyz.leoneclient.features.PlayerLookup;
 import dev.alfxyz.leoneclient.features.Reports;
@@ -55,6 +56,7 @@ public final class Modules {
 	public static final Timers TIMERS = new Timers();
 	public static final AutoJoin AUTO_JOIN = new AutoJoin();
 	public static final AutoReconnect AUTO_RECONNECT = new AutoReconnect();
+	public static final PackPrefetch PACK_PREFETCH = new PackPrefetch();
 	public static final ItemCooldowns ITEM_COOLDOWNS = new ItemCooldowns();
 	public static final WebEscape WEB_ESCAPE = new WebEscape();
 	public static final RocketCheck ROCKET_CHECK = new RocketCheck();
@@ -73,7 +75,7 @@ public final class Modules {
 		ANTI_MUTE, ALERT_FILTER, CHAT_CLEANER, MENTIONS, CHAT_TABS,
 		FRIEND_HIGHLIGHT, FRIEND_ACTIVITY, PLAYER_LOOKUP,
 		HUD_TAILOR, ACTION_BAR, TIMERS, PACK_WARNINGS,
-		AUTO_JOIN, AUTO_RECONNECT, ENDER_CHEST_PAGES, LIVE_AUCTIONS,
+		AUTO_JOIN, AUTO_RECONNECT, PACK_PREFETCH, ENDER_CHEST_PAGES, LIVE_AUCTIONS,
 		INTERFACE, ALL_SERVERS, LOG_FILTER,
 		STAFF_CHAT, ANTICHEAT_ALERTS, REPORTS, MOD_MODE,
 		// LeoneMC servers, each only on its own server

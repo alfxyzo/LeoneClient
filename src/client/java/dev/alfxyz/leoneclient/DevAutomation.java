@@ -6,6 +6,7 @@ import com.mojang.logging.LogUtils;
 import dev.alfxyz.leoneclient.features.ActionBars;
 import dev.alfxyz.leoneclient.features.AutoReconnect;
 import dev.alfxyz.leoneclient.features.ChatTabs;
+import dev.alfxyz.leoneclient.features.PackPrefetch;
 import dev.alfxyz.leoneclient.features.HudTailor;
 import dev.alfxyz.leoneclient.features.ItemCooldowns;
 import dev.alfxyz.leoneclient.features.LiveAuctions;
@@ -957,6 +958,72 @@ public final class DevAutomation {
 	}
 
 	/** LeoneMC is recognised by any address: plainly LeoneMC's ones at once, others by its signs, then remembered. */
+	/**
+	 * Pack Prefetch: the network pack was fetched at startup, and the game's own pack download takes a
+	 * prefetched copy with the right hash instead of going to the network (the address here goes nowhere).
+	 */
+	private static void packPrefetchChecks() {
+		at(200, "pack prefetch", mc -> {
+			String network = Modules.PACK_PREFETCH.debugCopyOf(PackPrefetch.networkPack());
+			check("the network pack was prefetched at startup (" + network + ")",
+				network != null && java.nio.file.Files.isRegularFile(PackPrefetch.dir().resolve(network + ".zip")));
+			try {
+				byte[] content = ("Leone autotest pack " + System.nanoTime()).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+				com.google.common.hash.HashCode hash = com.google.common.hash.Hashing.sha1().hashBytes(content);
+				java.nio.file.Path ours = PackPrefetch.dir().resolve(hash + ".zip");
+				java.nio.file.Files.createDirectories(ours.getParent());
+				java.nio.file.Files.write(ours, content);
+				java.nio.file.Path target = mc.gameDirectory.toPath().resolve("downloads").resolve("leone-autotest").resolve(java.util.UUID.randomUUID().toString());
+				java.nio.file.Files.createDirectories(target);
+				java.nio.file.Path old = target.resolve("0123456789abcdef0123456789abcdef01234567");
+				java.nio.file.Files.write(old, new byte[] {1});
+				java.net.URL nowhere = java.net.URI.create("http://127.0.0.1:9/leone-autotest.zip").toURL();
+				net.minecraft.util.HttpUtil.DownloadProgressListener quiet = new net.minecraft.util.HttpUtil.DownloadProgressListener() {
+					@Override
+					public void requestStart() {
+					}
+
+					@Override
+					public void downloadStart(java.util.OptionalLong size) {
+					}
+
+					@Override
+					public void downloadedBytes(long bytes) {
+					}
+
+					@Override
+					public void requestFinished(boolean success) {
+					}
+				};
+				java.nio.file.Path got = null;
+				try {
+					got = net.minecraft.util.HttpUtil.downloadFile(target, nowhere, java.util.Map.of(), com.google.common.hash.Hashing.sha1(), hash,
+						1_000_000, java.net.Proxy.NO_PROXY, quiet);
+				} catch (Exception e) {
+					LOGGER.info("Leone autotest: prefetched download threw {}", e.toString());
+				}
+				check("the game takes the prefetched copy instead of downloading it",
+					got != null && java.util.Arrays.equals(java.nio.file.Files.readAllBytes(got), content));
+				check("and the older version beside it is tidied away", !java.nio.file.Files.exists(old));
+				check("its card counts what was saved (" + Modules.PACK_PREFETCH.status() + ")",
+					Modules.PACK_PREFETCH.status() != null && Modules.PACK_PREFETCH.status().startsWith("Saved"));
+				com.google.common.hash.HashCode unknown = com.google.common.hash.Hashing.sha1().hashBytes(new byte[] {7, 7, 7});
+				boolean downloaded;
+				try {
+					net.minecraft.util.HttpUtil.downloadFile(target, nowhere, java.util.Map.of(), com.google.common.hash.Hashing.sha1(), unknown,
+						1_000_000, java.net.Proxy.NO_PROXY, quiet);
+					downloaded = true;
+				} catch (Exception e) {
+					downloaded = false;
+				}
+				check("a pack with no copy here is left to the game's own download", !downloaded && !java.nio.file.Files.exists(target.resolve(unknown.toString())));
+				java.nio.file.Files.deleteIfExists(ours);
+			} catch (Exception e) {
+				LOGGER.error("Leone autotest CHECK FAIL: pack prefetch threw", e);
+			}
+		});
+	}
+
 	private static void networkChecks() {
 		at(200, "network: addresses", mc -> {
 			check("any address with leonemc in it is LeoneMC", LeoneMC.isLeoneAddress("play.leonemc.gg") && LeoneMC.isLeoneAddress("EU.LeoneMC.net:25565")
@@ -1357,6 +1424,7 @@ public final class DevAutomation {
 		reconnectChecks();
 		chatTabsChecks();
 		networkChecks();
+		packPrefetchChecks();
 		serverChecks();
 		auctionChecks();
 		webChecks();
