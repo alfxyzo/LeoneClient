@@ -7,6 +7,7 @@ import com.google.gson.JsonParser;
 import com.mojang.logging.LogUtils;
 import dev.alfxyz.leoneclient.Chat;
 import dev.alfxyz.leoneclient.LeoneMC;
+import dev.alfxyz.leoneclient.mixin.DownloadedPackSourceAccessor;
 import dev.alfxyz.leoneclient.module.Category;
 import dev.alfxyz.leoneclient.module.Module;
 import dev.alfxyz.leoneclient.module.Setting;
@@ -27,11 +28,13 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Stream;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.SharedConstants;
 import net.minecraft.WorldVersion;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ServerData;
+import net.minecraft.client.resources.server.PackReloadConfig;
 import net.minecraft.server.packs.PackType;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
@@ -46,6 +49,11 @@ import org.slf4j.Logger;
  * the newest copy of each. When the game is about to download a pack whose SHA-1 matches a copy here, the
  * copy is put where the game looks first, and the game uses it after checking the hash itself. Packs
  * that do not match are downloaded by the game as usual.
+ *
+ * <p>Loading a pack this size takes a resource reload of several seconds, and the game does one when you
+ * leave (to take the packs off) and again for each pack when you come back. With Keep Loaded, LeoneMC's
+ * packs stay on after you leave, and when LeoneMC asks for packs that are already on, the reload is
+ * skipped. A changed pack, another server or singleplayer reloads as usual.
  */
 public final class PackPrefetch extends Module {
 	private static final Logger LOGGER = LogUtils.getLogger();
@@ -59,6 +67,8 @@ public final class PackPrefetch extends Module {
 
 	public final Setting.Slider interval = add(new Setting.Slider("interval", "Check every", "DOWNLOADS", 5, 60, 5, 10, "%.0f min"),
 		"How often to ask whether LeoneMC's packs have changed. A check with no change downloads nothing.");
+	public final Setting.Toggle keepLoaded = add(new Setting.Toggle("keep_loaded", "Keep loaded between joins", "LOADING", true),
+		"Leaves LeoneMC's packs on after you leave, so relogging does not reload them. They come off when you join another server or a world.");
 	public final Setting.Toggle tidy = add(new Setting.Toggle("tidy", "Remove old versions", "DOWNLOADS", true),
 		"When a pack is handed to the game, deletes the older versions of it from the game's download folder.");
 
@@ -78,6 +88,14 @@ public final class PackPrefetch extends Module {
 	private volatile long saved;
 	/** The server-list entry LeoneMC was last joined from, whose pack setting can change while we watch. */
 	private @Nullable ServerData leoneEntry;
+	/** The pack files the game has loaded as server packs, and whether LeoneMC asked for them. */
+	private List<Path> active = List.of();
+	private boolean activeForLeone;
+	/** True while LeoneMC's packs are still on after leaving LeoneMC. */
+	private boolean lingering;
+	private int reloadsSkipped;
+	/** For the autotest: treat the connection as LeoneMC (true), as not (false), or look (null). */
+	private @Nullable Boolean debugOnLeone;
 	/** When to say in chat that the packs are off: a moment after joining, so the server's welcome does not bury it. */
 	private long warnAt;
 
@@ -96,7 +114,7 @@ public final class PackPrefetch extends Module {
 
 	public PackPrefetch() {
 		super("pack_prefetch", Category.SERVER, "Pack Prefetch", Icons.DOWNLOAD,
-			"Downloads LeoneMC's resource packs in the background before you join, so joining does not wait on them.", true);
+			"Downloads LeoneMC's resource packs before you join and keeps them loaded between joins, so joining does not wait on them.", true);
 	}
 
 	public void register() {
@@ -106,6 +124,10 @@ public final class PackPrefetch extends Module {
 			if (server == null || !LeoneMC.connected()) return;
 			leoneEntry = server;
 			warnAt = System.currentTimeMillis() + 3_000;
+		});
+		// on any other server or in a world, LeoneMC's packs kept on after leaving come off
+		ClientPlayConnectionEvents.JOIN.register((handler, sender, mc) -> {
+			if (!onLeone()) unloadLingering(mc);
 		});
 	}
 
@@ -141,6 +163,7 @@ public final class PackPrefetch extends Module {
 			warnAt = 0;
 			if (LeoneMC.connected()) warnIfPacksOff();
 		}
+		if (lingering && (!enabled() || !keepLoaded.get()) && !onLeone()) unloadLingering(mc);
 		if (!enabled() || startedAt == 0 || busy) return;
 		if (now - startedAt < FIRST_CHECK_DELAY_MS) return;
 		if (lastRun != 0 && now - lastRun < (long) (interval.get() * 60_000)) return;
@@ -172,7 +195,12 @@ public final class PackPrefetch extends Module {
 		if (packsOff()) return "Server packs are off for LeoneMC";
 		String p = progress;
 		if (p != null) return p;
-		if (saved > 0) return "Saved " + mb(saved) + " this session";
+		if (saved > 0 || reloadsSkipped > 0) {
+			List<String> parts = new ArrayList<>();
+			if (saved > 0) parts.add(mb(saved));
+			if (reloadsSkipped > 0) parts.add(reloadsSkipped + (reloadsSkipped == 1 ? " reload" : " reloads"));
+			return "Saved " + String.join(" and ", parts) + " this session";
+		}
 		int ready;
 		synchronized (packs) {
 			ready = (int) packs.stream().filter(e -> e.sha1 != null).count();
@@ -236,6 +264,48 @@ public final class PackPrefetch extends Module {
 		}
 	}
 
+	/**
+	 * The game is about to reload its resources for a new set of server packs. Returns true to skip it: when
+	 * leaving LeoneMC (its packs stay on), or when LeoneMC asks for packs that are all on already. The
+	 * game is then told the packs applied, as it would be after the reload.
+	 */
+	public boolean skipReload(PackReloadConfig.Callbacks callbacks) {
+		List<Path> want = callbacks.packsToLoad().stream().map(PackReloadConfig.IdAndPath::path).toList();
+		if (enabled() && keepLoaded.get()) {
+			boolean skip = false;
+			if (want.isEmpty() && !active.isEmpty() && activeForLeone) {
+				lingering = true;
+				skip = true;
+				LOGGER.info("Leone Client: keeping LeoneMC's server packs loaded after leaving");
+			} else if (!want.isEmpty() && onLeone() && activeForLeone && active.containsAll(want)) {
+				lingering = false;
+				reloadsSkipped++;
+				skip = true;
+				LOGGER.info("Leone Client: LeoneMC's server packs are already loaded, skipping the reload");
+			}
+			if (skip) {
+				Minecraft.getInstance().schedule(callbacks::onSuccess);
+				return true;
+			}
+		}
+		active = want;
+		activeForLeone = !want.isEmpty() && onLeone();
+		lingering = false;
+		return false;
+	}
+
+	/** Takes off LeoneMC's packs that were kept on after leaving. */
+	private void unloadLingering(Minecraft mc) {
+		if (!lingering) return;
+		lingering = false;
+		active = List.of();
+		activeForLeone = false;
+		LOGGER.info("Leone Client: taking off LeoneMC's server packs kept from the last visit");
+		((DownloadedPackSourceAccessor) mc.getDownloadedPackSource()).leoneclient$setPackSource(output -> {
+		});
+		mc.reloadResourcePacks();
+	}
+
 	/** Deletes the other versions the game kept of this pack (its folder holds one file per version). */
 	private static void tidyOld(Path targetDir, Path keep) {
 		try (Stream<Path> files = Files.list(targetDir)) {
@@ -248,7 +318,8 @@ public final class PackPrefetch extends Module {
 		}
 	}
 
-	private static boolean onLeone() {
+	private boolean onLeone() {
+		if (debugOnLeone != null) return debugOnLeone;
 		if (LeoneMC.connected()) return true;
 		ServerData server = Minecraft.getInstance().getCurrentServer();
 		return server != null && LeoneMC.isKnownAddress(server.ip);
@@ -356,6 +427,26 @@ public final class PackPrefetch extends Module {
 			Entry e = find(url);
 			return e == null ? null : e.sha1;
 		}
+	}
+
+	/** For the autotest: as if on LeoneMC (true) or not (false), or null to look; and a fresh start. */
+	public void debugLeone(@Nullable Boolean onLeone, boolean reset) {
+		debugOnLeone = onLeone;
+		if (reset) {
+			active = List.of();
+			activeForLeone = false;
+			lingering = false;
+			reloadsSkipped = 0;
+		}
+	}
+
+	public boolean lingering() {
+		return lingering;
+	}
+
+	/** For the autotest: as if another server or a world was joined. */
+	public void debugJoinedElsewhere(Minecraft mc) {
+		unloadLingering(mc);
 	}
 
 	/** For the autotest: as if LeoneMC was last joined from this server-list entry. */

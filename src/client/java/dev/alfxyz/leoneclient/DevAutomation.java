@@ -1043,6 +1043,51 @@ public final class DevAutomation {
 			Modules.PACK_PREFETCH.debugEntry(null);
 			mc.gui.setScreen(null);
 		});
+		java.util.concurrent.atomic.AtomicInteger applied = new java.util.concurrent.atomic.AtomicInteger();
+		at(100, "pack prefetch: reloads", mc -> {
+			java.nio.file.Path a = java.nio.file.Path.of("network-a"), b = java.nio.file.Path.of("ads-b"), a2 = java.nio.file.Path.of("network-a2");
+			java.util.function.Function<java.util.List<java.nio.file.Path>, net.minecraft.client.resources.server.PackReloadConfig.Callbacks> asked =
+				paths -> new net.minecraft.client.resources.server.PackReloadConfig.Callbacks() {
+					@Override
+					public void onSuccess() {
+						applied.incrementAndGet();
+					}
+
+					@Override
+					public void onFailure(boolean isRecovery) {
+					}
+
+					@Override
+					public java.util.List<net.minecraft.client.resources.server.PackReloadConfig.IdAndPath> packsToLoad() {
+						return paths.stream().map(p -> new net.minecraft.client.resources.server.PackReloadConfig.IdAndPath(java.util.UUID.randomUUID(), p)).toList();
+					}
+				};
+			var pp = Modules.PACK_PREFETCH;
+			pp.debugLeone(true, true);
+			boolean first = pp.skipReload(asked.apply(java.util.List.of(a))) || pp.skipReload(asked.apply(java.util.List.of(a, b)));
+			check("joining LeoneMC the first time loads its packs as usual", !first);
+			boolean leave = pp.skipReload(asked.apply(java.util.List.of()));
+			check("leaving LeoneMC keeps its packs on, with no reload", leave && pp.lingering());
+			boolean back = pp.skipReload(asked.apply(java.util.List.of(a))) && pp.skipReload(asked.apply(java.util.List.of(a, b)));
+			check("coming back to the same packs skips both reloads (" + pp.status() + ")", back && !pp.lingering() && pp.status().contains("2 reloads"));
+			check("an updated pack still reloads", !pp.skipReload(asked.apply(java.util.List.of(a2, b))));
+			pp.debugLeone(false, false);
+			check("packs another server asks for are never skipped", !pp.skipReload(asked.apply(java.util.List.of(a2, b))));
+			check("and leaving that server takes them off as usual", !pp.skipReload(asked.apply(java.util.List.of())));
+			pp.keepLoaded.value = false;
+			pp.debugLeone(true, true);
+			pp.skipReload(asked.apply(java.util.List.of(a)));
+			check("with Keep Loaded off, leaving LeoneMC takes its packs off", !pp.skipReload(asked.apply(java.util.List.of())));
+			pp.keepLoaded.value = true;
+			pp.debugLeone(true, true);
+			pp.skipReload(asked.apply(java.util.List.of(a)));
+			pp.skipReload(asked.apply(java.util.List.of()));
+			pp.debugLeone(false, false);
+			pp.debugJoinedElsewhere(mc);
+			check("joining another server or a world takes kept packs off", !pp.lingering());
+			pp.debugLeone(null, true);
+		});
+		at(4000, "pack prefetch: applied", mc -> check("each skipped reload still tells the game the packs applied (" + applied.get() + ")", applied.get() == 4));
 	}
 
 	private static void networkChecks() {
