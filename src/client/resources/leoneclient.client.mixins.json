@@ -4,6 +4,12 @@
 	"compatibilityLevel": "JAVA_25",
 	"client": [
 		"BossOverlayAccessor",
+		"ads.AdFrameMixin",
+		"ads.AdInteractionMixin",
+		"ads.AdMapMixin",
+		"ads.AdPackMixin",
+		"ads.AdRenderMixin",
+		"ads.AdSoundMixin",
 		"ChatComponentMixin",
 		"ChatHistoryAccessor",
 		"ChatScreenAccessor",

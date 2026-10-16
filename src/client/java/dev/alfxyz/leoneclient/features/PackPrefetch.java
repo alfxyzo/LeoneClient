@@ -10,6 +10,7 @@ import dev.alfxyz.leoneclient.LeoneMC;
 import dev.alfxyz.leoneclient.mixin.DownloadedPackSourceAccessor;
 import dev.alfxyz.leoneclient.module.Category;
 import dev.alfxyz.leoneclient.module.Module;
+import dev.alfxyz.leoneclient.module.Modules;
 import dev.alfxyz.leoneclient.module.Setting;
 import dev.alfxyz.leoneclient.render.Icons;
 import dev.alfxyz.leoneclient.web.Http;
@@ -334,6 +335,8 @@ public final class PackPrefetch extends Module {
 			etag = e.etag;
 			had = e.sha1;
 		}
+		// Ad Block turns the ads pack down, so there is no point keeping it
+		if (Modules.AD_BLOCK.blocksPack(e.url)) return;
 		// without our copy, a "not changed" reply would leave us with nothing
 		if (had == null || !Files.isRegularFile(dir().resolve(had + ".zip"))) {
 			etag = null;

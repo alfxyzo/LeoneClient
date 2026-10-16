@@ -1090,6 +1090,66 @@ public final class DevAutomation {
 		at(4000, "pack prefetch: applied", mc -> check("each skipped reload still tells the game the packs applied (" + applied.get() + ")", applied.get() == 4));
 	}
 
+	/**
+	 * Ad Block: advert sounds and the ads pack are recognised; a map redrawn like a video makes its item
+	 * frame (and a clickable box over it) hidden and click-through, while a still map's frame is left alone.
+	 */
+	private static void adBlockChecks() {
+		at(200, "ad block: setup", mc -> {
+			var ab = Modules.AD_BLOCK;
+			ab.debugForget();
+			check("Minehut advert sounds are recognised, others are not",
+				dev.alfxyz.leoneclient.features.AdBlock.isAdSound(net.minecraft.resources.Identifier.withDefaultNamespace("minehut.ad.01077c00872d7332_live.mp4"))
+					&& dev.alfxyz.leoneclient.features.AdBlock.isAdSound(net.minecraft.resources.Identifier.fromNamespaceAndPath("minehut", "trailer"))
+					&& !dev.alfxyz.leoneclient.features.AdBlock.isAdSound(net.minecraft.resources.Identifier.withDefaultNamespace("entity.player.hurt")));
+			check("Minehut's ads pack is recognised, LeoneMC's pack is not",
+				ab.blocksPack("https://gsads-storage.minehut.com/MHAds_RP_EU_live.zip?hash=416f04c5-41f8-4ccb-a003-b9dba84a6d4b")
+					&& !ab.blocksPack(PackPrefetch.networkPack()));
+			// a wall with two framed maps on it, and a clickable box over the first
+			command(mc, "execute as @p at @s run fill ~-2 ~ ~4 ~2 ~2 ~4 minecraft:stone");
+			command(mc, "execute as @p at @s run summon minecraft:item_frame ~-1 ~1 ~3 {Facing:2b,Fixed:1b,Item:{id:\"minecraft:filled_map\",count:1,components:{\"minecraft:map_id\":900001}}}");
+			command(mc, "execute as @p at @s run summon minecraft:item_frame ~1 ~1 ~3 {Facing:2b,Fixed:1b,Item:{id:\"minecraft:filled_map\",count:1,components:{\"minecraft:map_id\":900002}}}");
+			command(mc, "execute as @p at @s run summon minecraft:interaction ~-1 ~1 ~3.5 {width:1f,height:1f,Tags:[\"leone_ad_test\"]}");
+		});
+		at(600, "ad block: redraws", mc -> {
+			var ab = Modules.AD_BLOCK;
+			for (int i = 0; i < 6; i++) ab.onMapData(new net.minecraft.world.level.saveddata.maps.MapId(900001), true);
+			ab.onMapData(new net.minecraft.world.level.saveddata.maps.MapId(900002), true);
+			ab.onMapData(new net.minecraft.world.level.saveddata.maps.MapId(900002), true);
+			check("a map redrawn like a video is recognised as an advert", ab.debugIsAdMap(900001));
+			check("a map redrawn now and then is not", !ab.debugIsAdMap(900002));
+			check("once recognised, its redraws are skipped", ab.onMapData(new net.minecraft.world.level.saveddata.maps.MapId(900001), true));
+		});
+		at(500, "ad block: hidden", mc -> {
+			var ab = Modules.AD_BLOCK;
+			net.minecraft.world.entity.Entity ad = null, still = null, box = null;
+			for (net.minecraft.world.entity.Entity e : mc.level.entitiesForRendering()) {
+				if (e instanceof net.minecraft.world.entity.decoration.ItemFrame f) {
+					var map = f.getItem().get(net.minecraft.core.component.DataComponents.MAP_ID);
+					if (map != null && map.id() == 900001) ad = e;
+					if (map != null && map.id() == 900002) still = e;
+				}
+				if (e instanceof net.minecraft.world.entity.Interaction) box = e;
+			}
+			check("the advert's frame is hidden and clicks pass through it", ad != null && ab.hides(ad) && !ad.isPickable());
+			check("the still map's frame is drawn and clickable as usual", still != null && !ab.hides(still) && still.isPickable());
+			check("the clickable box over the advert is click-through too", box != null && ab.hides(box) && !box.isPickable());
+			var sound = net.minecraft.client.resources.sounds.SimpleSoundInstance.forUI(
+				net.minecraft.sounds.SoundEvent.createVariableRangeEvent(net.minecraft.resources.Identifier.withDefaultNamespace("minehut.ad.leone_autotest")), 1f);
+			check("an advert sound is muted (" + ab.status() + ")",
+				mc.getSoundManager().play(sound) == net.minecraft.client.sounds.SoundEngine.PlayResult.NOT_STARTED && ab.status() != null && ab.status().contains("1 sound muted"));
+			ab.hideBillboards.value = false;
+			check("with Hide ad billboards off, it is drawn again", !ab.hides(ad));
+			ab.hideBillboards.value = true;
+		});
+		at(100, "ad block: clean up", mc -> {
+			command(mc, "kill @e[type=minecraft:item_frame]");
+			command(mc, "kill @e[type=minecraft:interaction,tag=leone_ad_test]");
+			command(mc, "execute as @p at @s run fill ~-2 ~ ~4 ~2 ~2 ~4 minecraft:air");
+			Modules.AD_BLOCK.debugForget();
+		});
+	}
+
 	private static void networkChecks() {
 		at(200, "network: addresses", mc -> {
 			check("any address with leonemc in it is LeoneMC", LeoneMC.isLeoneAddress("play.leonemc.gg") && LeoneMC.isLeoneAddress("EU.LeoneMC.net:25565")
@@ -1491,6 +1551,7 @@ public final class DevAutomation {
 		chatTabsChecks();
 		networkChecks();
 		packPrefetchChecks();
+		adBlockChecks();
 		serverChecks();
 		auctionChecks();
 		webChecks();
