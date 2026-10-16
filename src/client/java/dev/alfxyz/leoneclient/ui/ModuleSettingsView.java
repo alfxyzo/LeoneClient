@@ -20,6 +20,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import org.jspecify.annotations.Nullable;
 
@@ -163,7 +164,19 @@ final class ModuleSettingsView {
 		ui.cv.borderRoundRect(x0, y0, 38, 38, 11, 1, Colors.white(0.1f));
 		ui.icons.draw(ui.cv, Icons.BACK, x0 + 11, y0 + 11, 16, 2, Colors.TEXT);
 		ui.hit(x0, y0, 38, 38, screen::closeSettings, null);
-		if (!m.settings.isEmpty()) resetButton(ui, x0 + Page.W, y0 + 5, m);
+		float right = x0 + Page.W;
+		if (!m.settings.isEmpty()) right -= resetButton(ui, right, y0 + 5, m) + 8;
+		String editor = m.editorLabel();
+		if (editor != null) {
+			float ew = ui.buttonWidth(editor, Icons.HUD, Ui.BUTTON);
+			ui.button(m.key() + "#editor", right - ew, y0 + 5, 28, editor, Icons.HUD, Ui.Btn.ACCENT, true, () -> {
+				Module mod = m;
+				screen.openAfterClose(() -> {
+					Screen next = mod.editor();
+					return next != null ? next : LeoneScreen.returningTo(mod);
+				});
+			});
+		}
 		float tx = x0 + 50, ty = y0;
 		ui.text.draw(ui.cv, m.breadcrumb(), tx, ty + ui.text.ascent(Ui.HINT), Ui.HINT, Colors.TEXT_HINT);
 		ty += ui.text.lineHeight(Ui.HINT) + 4;
@@ -189,7 +202,7 @@ final class ModuleSettingsView {
 	}
 
 	/** Puts the module's settings back to their defaults, after a second click to confirm. */
-	private void resetButton(Ui ui, float right, float y, Module m) {
+	private float resetButton(Ui ui, float right, float y, Module m) {
 		Double armedAt = resetArmed.get(m.key());
 		boolean armed = armedAt != null && ui.now - armedAt < RESET_CONFIRM_MS;
 		if (!armed) resetArmed.remove(m.key());
@@ -209,6 +222,7 @@ final class ModuleSettingsView {
 		});
 		ui.tip(right - bw, y, bw, 28, "Puts every setting on this page back to its default. Whether " + m.name
 			+ " is on, its keybind and its place on the HUD stay as they are.");
+		return bw;
 	}
 
 	private void emptyCard(Ui ui, float x, float y, Module m) {

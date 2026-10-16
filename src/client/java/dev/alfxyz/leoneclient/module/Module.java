@@ -3,7 +3,10 @@ package dev.alfxyz.leoneclient.module;
 import dev.alfxyz.leoneclient.LeoneMC;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
+import org.jspecify.annotations.Nullable;
 
 /** A feature that can be switched on and off, with its own settings. */
 public abstract class Module {
@@ -95,6 +98,16 @@ public abstract class Module {
 	}
 
 	protected void onDisable() {
+	}
+
+	/** The label of a button on the settings page that opens the module's own editor, or null for none. */
+	public @Nullable String editorLabel() {
+		return null;
+	}
+
+	/** The module's own editor, opened by that button once the menu has closed. */
+	public @Nullable Screen editor() {
+		return null;
 	}
 
 	/** Called every client tick. */

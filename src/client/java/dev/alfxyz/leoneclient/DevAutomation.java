@@ -6,6 +6,7 @@ import com.mojang.logging.LogUtils;
 import dev.alfxyz.leoneclient.features.ActionBars;
 import dev.alfxyz.leoneclient.features.AutoReconnect;
 import dev.alfxyz.leoneclient.features.ChatTabs;
+import dev.alfxyz.leoneclient.features.HudTailor;
 import dev.alfxyz.leoneclient.features.ItemCooldowns;
 import dev.alfxyz.leoneclient.features.LiveAuctions;
 import dev.alfxyz.leoneclient.features.Timers;
@@ -605,6 +606,177 @@ public final class DevAutomation {
 		});
 	}
 
+	private static net.minecraft.client.player.RemotePlayer farPlayer;
+
+	/** The line under a name for a player thirty blocks away: there with Score Sight, gone without. */
+	private static void scoreSightChecks() {
+		at(300, "score sight: a far player", mc -> {
+			var sb = mc.level.getScoreboard();
+			var obj = sb.addObjective("leone_hp", net.minecraft.world.scores.criteria.ObjectiveCriteria.DUMMY, Component.literal("❤").withStyle(net.minecraft.ChatFormatting.RED),
+				net.minecraft.world.scores.criteria.ObjectiveCriteria.RenderType.INTEGER, false, null);
+			sb.setDisplayObjective(net.minecraft.world.scores.DisplaySlot.BELOW_NAME, obj);
+			sb.getOrCreatePlayerScore(net.minecraft.world.scores.ScoreHolder.forNameOnly("Far_Player"), obj).set(7);
+			farPlayer = new net.minecraft.client.player.RemotePlayer(mc.level, new com.mojang.authlib.GameProfile(java.util.UUID.randomUUID(), "Far_Player"));
+			var p = mc.player;
+			var look = p.getLookAngle();
+			farPlayer.snapTo(p.getX() + look.x * 30, p.getY(), p.getZ() + look.z * 30, p.getYRot() + 180, 0);
+			farPlayer.setId(987_654);
+			mc.level.addEntity(farPlayer);
+			Modules.SCORE_SIGHT.reset();
+			Modules.SCORE_SIGHT.setEnabled(true);
+		});
+		at(300, "score sight: on", mc -> {
+			check("Score Sight shows the line under a name thirty blocks away (" + scoreText(mc) + ")", scoreText(mc) != null);
+			Modules.SCORE_SIGHT.colour.value = true;
+			var line = scoreText(mc);
+			check("health colouring makes 7 of 20 red", line != null && line.getString().startsWith("7") && line.toFlatList().stream()
+				.anyMatch(c -> c.getStyle().getColor() != null && c.getStyle().getColor().getValue() == 0xFF5555));
+			Modules.SCORE_SIGHT.custom.set(20);
+			Modules.SCORE_SIGHT.range.set("Custom");
+			check("a custom range of 20 blocks leaves it out at 30", scoreText(mc) == null);
+			Modules.SCORE_SIGHT.range.set("Unlimited");
+			Modules.SCORE_SIGHT.friendsOnly.value = true;
+			check("only friends: a stranger's line stays hidden far away", scoreText(mc) == null);
+			Modules.SCORE_SIGHT.friendsOnly.value = false;
+			Modules.SCORE_SIGHT.setEnabled(false);
+			check("without Score Sight the game shows it only within ten blocks", scoreText(mc) == null);
+			Modules.SCORE_SIGHT.setEnabled(true);
+		});
+		shot(400, "65-score-sight");
+		at(100, "score sight: tidy", mc -> {
+			mc.level.removeEntity(farPlayer.getId(), net.minecraft.world.entity.Entity.RemovalReason.DISCARDED);
+			var sb = mc.level.getScoreboard();
+			var obj = sb.getObjective("leone_hp");
+			if (obj != null) sb.removeObjective(obj);
+			Modules.SCORE_SIGHT.reset();
+		});
+	}
+
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	private static Component scoreText(Minecraft mc) {
+		var renderer = (net.minecraft.client.renderer.entity.EntityRenderer) mc.getEntityRenderDispatcher().getRenderer(farPlayer);
+		var state = (net.minecraft.client.renderer.entity.state.EntityRenderState) renderer.createRenderState(farPlayer, 1f);
+		return state.scoreText;
+	}
+
+	private static dev.alfxyz.leoneclient.hud.VanillaHudEditor tailor(Minecraft mc) {
+		return mc.gui.screen() instanceof dev.alfxyz.leoneclient.hud.VanillaHudEditor e ? e : null;
+	}
+
+	private static float[] partCentre(Minecraft mc, HudTailor.Part p) {
+		var w = mc.getWindow();
+		float[] r = Modules.HUD_TAILOR.screenBounds(p, mc, w.getGuiScaledWidth(), w.getGuiScaledHeight());
+		return new float[] {r[0] + r[2] / 2, r[1] + r[3] / 2};
+	}
+
+	private static void tailorClick(Minecraft mc, float x, float y, int button) {
+		var e = tailor(mc);
+		if (e == null) return;
+		var ev = new MouseButtonEvent(x, y, new MouseButtonInfo(button, 0));
+		e.mouseMoved(x, y);
+		e.mouseClicked(ev, false);
+		e.mouseReleased(ev);
+	}
+
+	private static List<String> sidebarKeys() {
+		List<String> out = new ArrayList<>();
+		for (var l : dev.alfxyz.leoneclient.hud.Sidebar.lines()) if (!l.hidden()) out.add(l.key());
+		return out;
+	}
+
+	/** HUD Tailor: a server-like scoreboard trimmed, parts moved, hidden and resized in the editor, numbers for bars. */
+	private static void hudTailorChecks() {
+		at(300, "tailor: scoreboard", mc -> {
+			var sb = mc.level.getScoreboard();
+			var obj = sb.addObjective("leone_side", net.minecraft.world.scores.criteria.ObjectiveCriteria.DUMMY,
+				Component.literal("LEONEMC").withStyle(net.minecraft.ChatFormatting.GOLD, net.minecraft.ChatFormatting.BOLD),
+				net.minecraft.world.scores.criteria.ObjectiveCriteria.RenderType.INTEGER, false, null);
+			sb.setDisplayObjective(net.minecraft.world.scores.DisplaySlot.SIDEBAR, obj);
+			String[] lines = {"Balance: $1,234", "Kills: 12", " ", "Rank: Member", "Koth in: 4:59", "  ", "play.leonemc.net"};
+			for (int i = 0; i < lines.length; i++)
+				sb.getOrCreatePlayerScore(net.minecraft.world.scores.ScoreHolder.forNameOnly(lines[i]), obj).set(lines.length - i);
+			command(mc, "item replace entity @p armor.chest with minecraft:iron_chestplate");
+			command(mc, "effect give @p minecraft:speed 120 0");
+			Modules.HUD_TAILOR.reset();
+			Modules.HUD_TAILOR.setEnabled(true);
+			Modules.HUD_TAILOR.showAllLinesHere();
+		});
+		at(300, "tailor: drawn", mc -> {
+			check("HUD Tailor draws the scoreboard with every line (" + sidebarKeys() + ")", sidebarKeys().size() == 7);
+			Modules.HUD_TAILOR.hideAddress.value = true;
+			Modules.HUD_TAILOR.hideBlank.value = true;
+			Modules.HUD_TAILOR.hideWith.value = "rank";
+			Modules.HUD_TAILOR.rename.value = "Balance > Money";
+		});
+		at(200, "tailor: trimmed", mc -> {
+			List<String> keys = sidebarKeys();
+			check("address, blank and word filters trim the scoreboard (" + keys + ")", keys.size() == 3 && keys.contains("Kills: ##") && !keys.contains("Rank: Member"));
+		});
+		shot(200, "66-tailor-scoreboard");
+		at(100, "tailor: open editor", mc -> mc.gui.setScreen(Modules.HUD_TAILOR.editor()));
+		at(400, "tailor: hide a line by clicking it", mc -> {
+			var line = dev.alfxyz.leoneclient.hud.Sidebar.lines().stream().filter(l -> l.key().equals("Kills: ##")).findFirst().orElse(null);
+			check("the editor sees the scoreboard's lines", line != null);
+			if (line == null) return;
+			tailorClick(mc, line.x() + line.w() / 2, line.y() + line.h() / 2, 0);
+			check("clicking a scoreboard line in the editor hides it here", Modules.HUD_TAILOR.lineHidden("Kills: ##") && Modules.HUD_TAILOR.hiddenHere() == 1);
+		});
+		at(200, "tailor: drag the hotbar", mc -> {
+			var e = tailor(mc);
+			if (e == null) return;
+			float[] c = partCentre(mc, HudTailor.Part.HOTBAR);
+			e.mouseMoved(c[0], c[1]);
+			e.mouseClicked(new MouseButtonEvent(c[0], c[1], new MouseButtonInfo(0, 0)), false);
+			e.mouseDragged(new MouseButtonEvent(c[0] + 60, c[1] - 30, new MouseButtonInfo(0, 0)), 60, -30);
+			e.mouseReleased(new MouseButtonEvent(c[0] + 60, c[1] - 30, new MouseButtonInfo(0, 0)));
+			var l = Modules.HUD_TAILOR.layout(HudTailor.Part.HOTBAR);
+			check("dragging the hotbar moves it (" + l.x.get() + ", " + l.y.get() + ")", l.x.get() == 60 && l.y.get() == -30);
+			check("a drag is not a line click", Modules.HUD_TAILOR.hiddenHere() == 1);
+			float[] a = partCentre(mc, HudTailor.Part.ARMOUR);
+			tailorClick(mc, a[0], a[1], 1);
+			check("right-clicking the armour bar hides it", !Modules.HUD_TAILOR.shown(HudTailor.Part.ARMOUR));
+			// near the bar's left end, clear of the level number in its middle
+			float[] xr = Modules.HUD_TAILOR.screenBounds(HudTailor.Part.XP_BAR, mc, mc.getWindow().getGuiScaledWidth(), mc.getWindow().getGuiScaledHeight());
+			e.mouseScrolled(xr[0] + 10, xr[1] + 2, 0, 1);
+			e.mouseScrolled(xr[0] + 10, xr[1] + 2, 0, 1);
+			var xl = Modules.HUD_TAILOR.layout(HudTailor.Part.XP_BAR);
+			check("scrolling resizes a part (" + xl.scale.get() + ")", Math.abs(xl.scale.get() - 1.1f) < 0.001f);
+			check("short key names fit a slot", HudTailor.shortKey("Mouse Button 5").equals("M5") && HudTailor.shortKey("Keypad 0").equals("N0")
+				&& HudTailor.shortKey("F").equals("F"));
+			e.mouseMoved(c[0] + 60, c[1] - 30);
+		});
+		shot(400, "67-tailor-editor");
+		at(100, "tailor: numbers", mc -> {
+			mc.gui.setScreen(null);
+			command(mc, "gamemode survival @p");
+			command(mc, "effect give @p minecraft:absorption 60 0");
+			mc.gui.hud.getChat().clearMessages(false);
+			Modules.HUD_TAILOR.healthStyle.set("Number");
+			Modules.HUD_TAILOR.hungerStyle.set("Number");
+			Modules.HUD_TAILOR.slotKeys.value = true;
+			Modules.HUD_TAILOR.setShown(HudTailor.Part.ARMOUR, true);
+			Modules.HUD_TAILOR.armourStyle.set("Number");
+			// clear of the chat box, which is drawn over that corner
+			Modules.HUD_TAILOR.layout(HudTailor.Part.ARMOUR).x.set(230);
+			Modules.HUD_TAILOR.effects.flip("Vignette");
+		});
+		shot(500, "68-tailor-numbers");
+		at(100, "tailor: present parts", mc -> check("in survival the health, hunger and armour (" + mc.player.getArmorValue() + ") are on screen, the air bar is not",
+			Modules.HUD_TAILOR.present(HudTailor.Part.HEALTH, mc) && Modules.HUD_TAILOR.present(HudTailor.Part.HUNGER, mc)
+				&& Modules.HUD_TAILOR.present(HudTailor.Part.ARMOUR, mc) && !Modules.HUD_TAILOR.present(HudTailor.Part.AIR, mc)));
+		at(100, "tailor: off is vanilla", mc -> Modules.HUD_TAILOR.setEnabled(false));
+		shot(400, "69-tailor-off");
+		at(100, "tailor: tidy", mc -> {
+			Modules.HUD_TAILOR.reset();
+			var sb = mc.level.getScoreboard();
+			var obj = sb.getObjective("leone_side");
+			if (obj != null) sb.removeObjective(obj);
+			command(mc, "item replace entity @p armor.chest with minecraft:air");
+			command(mc, "effect clear @p");
+			command(mc, "gamemode creative @p");
+		});
+	}
+
 	/** Point {@code f} of the way along a slider's track, as drawn. */
 	private static float[] along(Minecraft mc, Setting.Slider sl, float f) {
 		float[] d = screen(mc).debugSlider(sl);
@@ -1162,6 +1334,8 @@ public final class DevAutomation {
 		auctionChecks();
 		webChecks();
 		rocketChecks();
+		scoreSightChecks();
+		hudTailorChecks();
 
 		// a full atlas is wiped before the next frame, and drawing carries on (heads, icons and text come back)
 		at(200, "atlas: fill it", mc -> {

@@ -82,6 +82,7 @@ public class LeoneClient implements ClientModInitializer {
 			StaffChat.destroy();
 		});
 		Hud.register();
+		Modules.HUD_TAILOR.register();
 		ChatTabBar.register();
 		ChatLineActions.register();
 		DevAutomation.init();

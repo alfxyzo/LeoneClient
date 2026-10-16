@@ -14,6 +14,7 @@ import dev.alfxyz.leoneclient.features.CombatLogGuard;
 import dev.alfxyz.leoneclient.features.CombatTimer;
 import dev.alfxyz.leoneclient.features.EnderChestPages;
 import dev.alfxyz.leoneclient.features.FriendActivity;
+import dev.alfxyz.leoneclient.features.HudTailor;
 import dev.alfxyz.leoneclient.features.ItemCooldowns;
 import dev.alfxyz.leoneclient.features.LiveAuctions;
 import dev.alfxyz.leoneclient.features.FriendHighlight;
@@ -25,6 +26,7 @@ import dev.alfxyz.leoneclient.features.PackWarnings;
 import dev.alfxyz.leoneclient.features.PlayerLookup;
 import dev.alfxyz.leoneclient.features.Reports;
 import dev.alfxyz.leoneclient.features.RocketCheck;
+import dev.alfxyz.leoneclient.features.ScoreSight;
 import dev.alfxyz.leoneclient.features.SessionStats;
 import dev.alfxyz.leoneclient.features.StaffChatModule;
 import dev.alfxyz.leoneclient.features.Timers;
@@ -38,6 +40,7 @@ public final class Modules {
 	public static final CombatBar COMBAT_BAR = new CombatBar();
 	public static final CombatLogGuard COMBAT_LOG_GUARD = new CombatLogGuard();
 	public static final SessionStats SESSION_STATS = new SessionStats();
+	public static final ScoreSight SCORE_SIGHT = new ScoreSight();
 	public static final AntiMute ANTI_MUTE = new AntiMute();
 	public static final AlertFilter ALERT_FILTER = new AlertFilter();
 	public static final Mentions MENTIONS = new Mentions();
@@ -47,6 +50,7 @@ public final class Modules {
 	public static final FriendActivity FRIEND_ACTIVITY = new FriendActivity();
 	public static final PlayerLookup PLAYER_LOOKUP = new PlayerLookup();
 	public static final ActionBar ACTION_BAR = new ActionBar();
+	public static final HudTailor HUD_TAILOR = new HudTailor();
 	public static final PackWarnings PACK_WARNINGS = new PackWarnings();
 	public static final Timers TIMERS = new Timers();
 	public static final AutoJoin AUTO_JOIN = new AutoJoin();
@@ -65,10 +69,10 @@ public final class Modules {
 	public static final ModModeStatus MOD_MODE = new ModModeStatus();
 
 	private static final List<Module> ALL = List.of(
-		COMBAT_TIMER, COMBAT_BAR, COMBAT_LOG_GUARD, SESSION_STATS,
+		COMBAT_TIMER, COMBAT_BAR, COMBAT_LOG_GUARD, SESSION_STATS, SCORE_SIGHT,
 		ANTI_MUTE, ALERT_FILTER, CHAT_CLEANER, MENTIONS, CHAT_TABS,
 		FRIEND_HIGHLIGHT, FRIEND_ACTIVITY, PLAYER_LOOKUP,
-		ACTION_BAR, TIMERS, PACK_WARNINGS,
+		HUD_TAILOR, ACTION_BAR, TIMERS, PACK_WARNINGS,
 		AUTO_JOIN, AUTO_RECONNECT, ENDER_CHEST_PAGES, LIVE_AUCTIONS,
 		INTERFACE, ALL_SERVERS, LOG_FILTER,
 		STAFF_CHAT, ANTICHEAT_ALERTS, REPORTS, MOD_MODE,

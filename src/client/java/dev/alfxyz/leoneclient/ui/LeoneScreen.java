@@ -61,6 +61,8 @@ public class LeoneScreen extends Screen {
 	private double closingAt = -1;
 	private @Nullable Supplier<Screen> afterClose;
 	private @Nullable Kind initialKind;
+	/** A module whose settings page opens with the menu, coming back from its own editor. */
+	private @Nullable Module initialModule;
 	/**
 	 * Coming back from the HUD editor: the wheel, hub and page are already in place and the whole menu
 	 * fades in together, instead of replaying the opening animation over a page that is already open.
@@ -146,6 +148,14 @@ public class LeoneScreen extends Screen {
 	/** The menu as it was, back from the HUD editor, on a dock page. */
 	public static LeoneScreen returningTo(Kind page) {
 		LeoneScreen s = new LeoneScreen(page);
+		s.returning = true;
+		return s;
+	}
+
+	/** The menu as it was, back from a module's own editor, on that module's settings page. */
+	public static LeoneScreen returningTo(Module m) {
+		LeoneScreen s = new LeoneScreen(Kind.CATEGORY);
+		s.initialModule = m;
 		s.returning = true;
 		return s;
 	}
@@ -319,8 +329,11 @@ public class LeoneScreen extends Screen {
 		double now = now();
 		if (openedAt < 0) startOpen(now);
 		if (initialKind != null) {
-			openPage(initialKind, 0);
+			int seg = initialModule != null ? Math.max(0, segmentOf(initialModule.category)) : 0;
+			openPage(initialKind, seg);
+			if (initialModule != null) openSettings(initialModule);
 			initialKind = null;
+			initialModule = null;
 			if (returning) settleOpenPage(now);
 		}
 		if (panelOut && panelShown && now - panelOutAt >= 260) {
@@ -873,7 +886,12 @@ public class LeoneScreen extends Screen {
 	}
 
 	void openHudEditor() {
-		afterClose = HudEditorScreen::new;
+		openAfterClose(HudEditorScreen::new);
+	}
+
+	/** Closes the menu and then opens another screen, such as a module's own editor. */
+	void openAfterClose(Supplier<Screen> next) {
+		afterClose = next;
 		startClose();
 	}
 
